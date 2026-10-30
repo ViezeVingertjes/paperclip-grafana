@@ -12,6 +12,8 @@ A local Grafana dashboard for [Paperclip](https://github.com/paperclipai/papercl
 [![Last commit](https://img.shields.io/github/last-commit/ViezeVingertjes/paperclip-grafana)](https://github.com/ViezeVingertjes/paperclip-grafana/commits/main)
 [![CI](https://github.com/ViezeVingertjes/paperclip-grafana/actions/workflows/ci.yml/badge.svg)](https://github.com/ViezeVingertjes/paperclip-grafana/actions/workflows/ci.yml)
 
+<img src="docs/screenshots/01-health-and-overview.jpg" alt="Health tiles and overview" width="900">
+
 </div>
 
 > **Unofficial.** This project is not affiliated with or endorsed by Paperclip. It reads telemetry that Paperclip itself emits.
@@ -123,6 +125,31 @@ Health, Runs, Run preparation, Execution, Workspace, Budget and API rows. The *N
 agents, which also need a Claude credential the runner accepts and an image built from Paperclip's `production` target
 (see [Troubleshooting](#troubleshooting)). Your own `OTEL_SERVICE_NAME` is fine: the *Instance* variable lists whatever
 exports Paperclip spans.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/01-health-and-overview.jpg"><img src="docs/screenshots/01-health-and-overview.jpg" alt="Health and overview"></a><br><sub><b>Health and overview</b>: tiles that compare now with your own last 7 days turn green, orange or red.</sub></td>
+    <td width="50%"><a href="docs/screenshots/02-runs.jpg"><img src="docs/screenshots/02-runs.jpg" alt="Runs"></a><br><sub><b>Runs</b>: throughput and failures, p50/p95 duration, average concurrency, and recent runs you can click through to the trace.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/03-run-preparation.jpg"><img src="docs/screenshots/03-run-preparation.jpg" alt="Run preparation"></a><br><sub><b>Run preparation</b>: where the time before the agent starts goes, down to individual skill and configuration steps.</sub></td>
+    <td width="50%"><a href="docs/screenshots/04-execution-and-completion.jpg"><img src="docs/screenshots/04-execution-and-completion.jpg" alt="Execution and completion"></a><br><sub><b>Execution and completion</b>: dispatch, runtime and the bookkeeping after a run, for every adapter.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/05-native-startup-and-first-token.jpg"><img src="docs/screenshots/05-native-startup-and-first-token.jpg" alt="Native runner startup"></a><br><sub><b>Native runner: startup and first token</b>: time to first token, Runner startup, and a breakdown of the transport and session phases.</sub></td>
+    <td width="50%"><a href="docs/screenshots/06-native-turns-and-tools.jpg"><img src="docs/screenshots/06-native-turns-and-tools.jpg" alt="Native runner turns and tools"></a><br><sub><b>Native runner: turns and tools</b>: turn duration, tool executions per tool, failures and latency.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/07-workspace-and-providers.jpg"><img src="docs/screenshots/07-workspace-and-providers.jpg" alt="Workspace and environment"></a><br><sub><b>Providers and workspace</b>: where workspaces are realized, how the Runner is reached, the slowest preparation steps.</sub></td>
+    <td width="50%"><a href="docs/screenshots/08-controller-and-budget.jpg"><img src="docs/screenshots/08-controller-and-budget.jpg" alt="Controller and budget"></a><br><sub><b>Controller and budget</b>: startup and recovery phases, and the cost of budget admission and accounting.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><a href="docs/screenshots/09-api.jpg"><img src="docs/screenshots/09-api.jpg" alt="API"></a><br><sub><b>API</b>: requests, latency and status codes, the slowest requests and the phases of a task-detail read.</sub></td>
+    <td width="50%"><a href="docs/screenshots/10-trace-waterfall.jpg"><img src="docs/screenshots/10-trace-waterfall.jpg" alt="Trace waterfall"></a><br><sub><b>Trace waterfall</b>: one native run, from the queue through preparation and Runner startup to the agent turn.</sub></td>
+  </tr>
+</table>
 
 ## How it works
 

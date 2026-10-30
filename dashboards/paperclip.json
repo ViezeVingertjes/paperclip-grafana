@@ -2103,7 +2103,8 @@
             "excludeByName": {
               "traceService": true,
               "traceName": true,
-              "service.name": true
+              "service.name": true,
+              "status": true
             },
             "indexByName": {
               "time": 0,
@@ -2155,7 +2156,7 @@
         "x": 0,
         "y": 44,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -2292,7 +2293,7 @@
         "x": 8,
         "y": 44,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -2429,7 +2430,7 @@
         "x": 16,
         "y": 44,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -2564,7 +2565,7 @@
       "description": "The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower.",
       "gridPos": {
         "x": 0,
-        "y": 55,
+        "y": 56,
         "w": 12,
         "h": 8
       },
@@ -2700,7 +2701,7 @@
       "description": "95th percentile of the two phases that usually dominate preparation.",
       "gridPos": {
         "x": 12,
-        "y": 55,
+        "y": 56,
         "w": 12,
         "h": 8
       },
@@ -2855,7 +2856,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 63,
+        "y": 64,
         "w": 24,
         "h": 1
       },
@@ -2868,9 +2869,9 @@
       "description": "Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents.",
       "gridPos": {
         "x": 0,
-        "y": 64,
+        "y": 65,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -2884,7 +2885,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"execution\\\\..*\" } | avg_over_time(duration) by (name) | topk(8)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"execution\\\\..*\" && duration > 0ns } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -3005,9 +3006,9 @@
       "description": "Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*).",
       "gridPos": {
         "x": 8,
-        "y": 64,
+        "y": 65,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -3021,7 +3022,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"completion\\\\..*\" } | avg_over_time(duration) by (name) | topk(8)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"completion\\\\..*\" && duration > 0ns } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -3142,9 +3143,9 @@
       "description": "How long the main post-dispatch phases took per step.",
       "gridPos": {
         "x": 16,
-        "y": 64,
+        "y": 65,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -3271,7 +3272,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 75,
+        "y": 77,
         "w": 24,
         "h": 1
       },
@@ -3284,7 +3285,7 @@
       "description": "Wait until the first deliverable text, measured from the accepted trigger (queueing, preparation, startup, provider latency and ingestion). p95 is dashed.",
       "gridPos": {
         "x": 0,
-        "y": 76,
+        "y": 78,
         "w": 8,
         "h": 8
       },
@@ -3418,7 +3419,7 @@
       "description": "Runner session startup: transport, runtime staging and workspace sync, until the first durable turn.submitted event. p95 is dashed.",
       "gridPos": {
         "x": 8,
-        "y": 76,
+        "y": 78,
         "w": 8,
         "h": 8
       },
@@ -3552,7 +3553,7 @@
       "description": "runner.session.bootstrap = a new provider session; runner.session.resume = an exact recovered session. Resumes skip most startup work.",
       "gridPos": {
         "x": 16,
-        "y": 76,
+        "y": 78,
         "w": 8,
         "h": 8
       },
@@ -3624,12 +3625,12 @@
       "id": 44,
       "type": "bargauge",
       "title": "Where startup time goes (avg)",
-      "description": "Mean duration per Runner startup phase. Nested phases overlap their parents (for example artifact preparation sits inside transport connect), so do not add the bars.",
+      "description": "Mean duration per Runner startup phase: transport connect, registration, provider identity, cold start, session bootstrap or resume, and turn submit. Phases overlap, so do not add the bars.",
       "gridPos": {
         "x": 0,
-        "y": 84,
+        "y": 86,
         "w": 12,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -3643,7 +3644,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"runner\\\\.(transport\\\\.connect|transport\\\\.activation|transport\\\\.ready|runtime\\\\.stage|session\\\\.bootstrap|session\\\\.resume|turn\\\\.submit)\" } | avg_over_time(duration) by (name)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"runner\\\\.(session\\\\.(bootstrap|resume)|transport\\\\.(cold_start|connect|prepare|registration|provider_identity|started_event|turn_start)|turn\\\\.submit)\" && duration > 0ns } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -3764,9 +3765,9 @@
       "description": "Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins.",
       "gridPos": {
         "x": 12,
-        "y": 84,
+        "y": 86,
         "w": 12,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -3901,7 +3902,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 95,
+        "y": 98,
         "w": 24,
         "h": 1
       },
@@ -3914,7 +3915,7 @@
       "description": "From turn.submitted to the provider terminal event. Includes model time and tool use. p95 is dashed.",
       "gridPos": {
         "x": 0,
-        "y": 96,
+        "y": 99,
         "w": 8,
         "h": 8
       },
@@ -4048,7 +4049,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 96,
+        "y": 99,
         "w": 8,
         "h": 8
       },
@@ -4112,7 +4113,7 @@
       "description": "submitted_to_started: time for the provider to accept the turn. time_to_first_agent_event: first meaningful provider activity (assistant or reasoning text, or a tool announcement), not a finished answer.",
       "gridPos": {
         "x": 16,
-        "y": 96,
+        "y": 99,
         "w": 8,
         "h": 8
       },
@@ -4267,7 +4268,7 @@
       "description": "Native control-plane tool calls by their known semantic operation (anything else is 'other'). Counts per fixed 5-minute step; no arguments or call IDs are exported.",
       "gridPos": {
         "x": 0,
-        "y": 104,
+        "y": 107,
         "w": 8,
         "h": 8
       },
@@ -4382,7 +4383,7 @@
       "description": "Tool executions that ended in an error status. Empty is good.",
       "gridPos": {
         "x": 8,
-        "y": 104,
+        "y": 107,
         "w": 8,
         "h": 8
       },
@@ -4497,7 +4498,7 @@
       "description": "Authorization plus execution inside the server authority, including HTTP request time.",
       "gridPos": {
         "x": 16,
-        "y": 104,
+        "y": 107,
         "w": 8,
         "h": 8
       },
@@ -4631,7 +4632,7 @@
       "description": "From a tool announcement to its last input update. Includes provider buffering and transport; not the exact end of model generation.",
       "gridPos": {
         "x": 0,
-        "y": 112,
+        "y": 115,
         "w": 8,
         "h": 7
       },
@@ -4765,7 +4766,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 112,
+        "y": 115,
         "w": 16,
         "h": 7
       },
@@ -4864,7 +4865,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 119,
+        "y": 122,
         "w": 24,
         "h": 1
       },
@@ -4874,12 +4875,12 @@
       "id": 56,
       "type": "bargauge",
       "title": "Turns by provider",
-      "description": "Agent turns by provider kind (for ACPX the underlying agent, such as claude or codex).",
+      "description": "Agent turns by provider kind. Native runs report the ACPX runtime here (acpx); which agent it drives is not exported.",
       "gridPos": {
         "x": 0,
-        "y": 120,
+        "y": 123,
         "w": 8,
-        "h": 7
+        "h": 6
       },
       "datasource": {
         "type": "tempo",
@@ -4992,9 +4993,9 @@
       "description": "Where each run's workspace was realized (paperclip.native.span.driver on environment.workspace.realize): local, or the sandbox provider.",
       "gridPos": {
         "x": 8,
-        "y": 120,
+        "y": 123,
         "w": 8,
-        "h": 7
+        "h": 6
       },
       "datasource": {
         "type": "tempo",
@@ -5107,9 +5108,9 @@
       "description": "How the controller reached the Runner (paperclip.native.span.mode on runner.transport.selected), for example local_loopback.",
       "gridPos": {
         "x": 16,
-        "y": 120,
+        "y": 123,
         "w": 8,
-        "h": 7
+        "h": 6
       },
       "datasource": {
         "type": "tempo",
@@ -5222,7 +5223,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 127,
+        "y": 129,
         "w": 24,
         "h": 1
       },
@@ -5235,9 +5236,9 @@
       "description": "Eight slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it.",
       "gridPos": {
         "x": 0,
-        "y": 128,
+        "y": 130,
         "w": 10,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -5372,7 +5373,7 @@
       "description": "Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes.",
       "gridPos": {
         "x": 10,
-        "y": 128,
+        "y": 130,
         "w": 8,
         "h": 11
       },
@@ -5495,9 +5496,9 @@
       "description": "Outcome of the pristine repository-object cache lookup when a task checks out a repository: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error. Empty for workspaces without a repository.",
       "gridPos": {
         "x": 18,
-        "y": 128,
+        "y": 130,
         "w": 6,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -5610,7 +5611,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 139,
+        "y": 142,
         "w": 24,
         "h": 1
       },
@@ -5623,9 +5624,9 @@
       "description": "Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one.",
       "gridPos": {
         "x": 0,
-        "y": 140,
+        "y": 143,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -5760,9 +5761,9 @@
       "description": "Error spans from controller.* phases per hour. Empty is good.",
       "gridPos": {
         "x": 8,
-        "y": 140,
+        "y": 143,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -5846,9 +5847,9 @@
       "description": "Duration of native finalization reconciliation passes. Only passes of one second or longer are recorded, so no data means every pass was fast.",
       "gridPos": {
         "x": 16,
-        "y": 140,
+        "y": 143,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -5980,7 +5981,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 151,
+        "y": 155,
         "w": 24,
         "h": 1
       },
@@ -5993,9 +5994,9 @@
       "description": "Budget admission, reservation, accounting, settlement, enforcement and cancellation spans (paperclip.budgets tracer).",
       "gridPos": {
         "x": 0,
-        "y": 152,
+        "y": 156,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "prometheus",
@@ -6079,9 +6080,9 @@
       "description": "Time to acquire the company accounting lock. Rises under contention between concurrent runs of one company.",
       "gridPos": {
         "x": 8,
-        "y": 152,
+        "y": 156,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -6213,9 +6214,9 @@
       "description": "How long budget enforcement work took: delivery, scope evaluation and cancellation (budget.enforcement.*, budget.cancellation.*).",
       "gridPos": {
         "x": 16,
-        "y": 152,
+        "y": 156,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -6318,6 +6319,27 @@
             "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "$1"
           }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^((?:p50|p95) )?budget\\./",
+            "renamePattern": "$1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/_/g",
+            "renamePattern": " "
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/\\./g",
+            "renamePattern": " > "
+          }
         }
       ]
     },
@@ -6328,7 +6350,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 163,
+        "y": 168,
         "w": 24,
         "h": 1
       },
@@ -6341,7 +6363,7 @@
       "description": "Server spans from the HTTP auto-instrumentation, by request method. Attribute names follow the stable OpenTelemetry semantic conventions.",
       "gridPos": {
         "x": 0,
-        "y": 164,
+        "y": 169,
         "w": 8,
         "h": 8
       },
@@ -6456,7 +6478,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 164,
+        "y": 169,
         "w": 8,
         "h": 8
       },
@@ -6590,7 +6612,7 @@
       "description": "Responses by HTTP status code. Anything 5xx also shows as an error span.",
       "gridPos": {
         "x": 16,
-        "y": 164,
+        "y": 169,
         "w": 8,
         "h": 8
       },
@@ -6705,9 +6727,9 @@
       "description": "The path is the request path as received, so it can contain task or agent IDs.",
       "gridPos": {
         "x": 0,
-        "y": 172,
+        "y": 177,
         "w": 16,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -6745,6 +6767,30 @@
                 "value": "ns"
               }
             ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Path"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 420
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "Method"
+            },
+            "properties": [
+              {
+                "id": "custom.width",
+                "value": 80
+              }
+            ]
           }
         ]
       },
@@ -6773,6 +6819,7 @@
               "traceName": true,
               "service.name": true,
               "name": true,
+              "kind": true,
               "Name": true
             },
             "indexByName": {
@@ -6808,9 +6855,9 @@
       "description": "GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap.",
       "gridPos": {
         "x": 16,
-        "y": 172,
+        "y": 177,
         "w": 8,
-        "h": 11
+        "h": 12
       },
       "datasource": {
         "type": "tempo",
@@ -6945,7 +6992,7 @@
       "collapsed": true,
       "gridPos": {
         "x": 0,
-        "y": 183,
+        "y": 189,
         "w": 24,
         "h": 1
       },
@@ -6957,7 +7004,7 @@
           "description": "Eyes reactions acknowledging durable receipt of a Slack message: confirmed or failed. Failed attempts are not acknowledgement latency samples.",
           "gridPos": {
             "x": 0,
-            "y": 184,
+            "y": 190,
             "w": 8,
             "h": 7
           },
@@ -7021,7 +7068,7 @@
           "description": "Durable inbound receipt to provider confirmation. Excludes Slack-to-webhook transit and SDK parsing.",
           "gridPos": {
             "x": 8,
-            "y": 184,
+            "y": 190,
             "w": 8,
             "h": 7
           },
@@ -7085,7 +7132,7 @@
           "description": "Action creation to transport.",
           "gridPos": {
             "x": 16,
-            "y": 184,
+            "y": 190,
             "w": 8,
             "h": 7
           },
@@ -7151,7 +7198,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 184,
+        "y": 190,
         "w": 24,
         "h": 1
       },
@@ -7164,7 +7211,7 @@
       "description": "The ten most frequent span names. Instrumentation spans (HTTP, authentication) usually dominate.",
       "gridPos": {
         "x": 0,
-        "y": 185,
+        "y": 191,
         "w": 12,
         "h": 8
       },
@@ -7228,7 +7275,7 @@
       "description": "Error spans by name per hour; empty is good.",
       "gridPos": {
         "x": 12,
-        "y": 185,
+        "y": 191,
         "w": 12,
         "h": 8
       },
@@ -7292,7 +7339,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 193,
+        "y": 199,
         "w": 24,
         "h": 1
       },
@@ -7305,7 +7352,7 @@
       "description": "Spans reaching Tempo from the selected instance(s). No data means Paperclip is not exporting: check OTEL_EXPORTER_OTLP_ENDPOINT and the server log for a package diagnostic.",
       "gridPos": {
         "x": 0,
-        "y": 194,
+        "y": 200,
         "w": 6,
         "h": 4
       },
@@ -7359,7 +7406,7 @@
       "description": "Distinct service names (OTEL_SERVICE_NAME) with spans in the range.",
       "gridPos": {
         "x": 6,
-        "y": 194,
+        "y": 200,
         "w": 6,
         "h": 4
       },
@@ -7413,7 +7460,7 @@
       "description": "Span ingest rate per service.",
       "gridPos": {
         "x": 12,
-        "y": 194,
+        "y": 200,
         "w": 12,
         "h": 4
       },

@@ -378,7 +378,7 @@ panels += [
                 rename={"duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "time": "Start", "spanID": "Span ID"},
                 unit_overrides=DURATION_NS),
     tempo_table("Failed runs", tq(RUNS_RE, "status = error", regex=True) + " | select(span.paperclip.task.run.run_id, span.paperclip.task.run.outcome)", 9, y, 15, 8, "spans",
-                hide=COMMON_HIDE, sort="time", order=["time", "name", "duration", "paperclip.task.run.run_id", "paperclip.task.run.outcome", "spanID"],
+                hide=COMMON_HIDE + ["status"], sort="time", order=["time", "name", "duration", "paperclip.task.run.run_id", "paperclip.task.run.outcome", "spanID"],
                 desc="Runs whose root span has an error status. Empty is good. Open the span ID to see which phase failed.",
                 rename={"name": "Span", "duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "paperclip.task.run.outcome": "Outcome", "time": "Start", "spanID": "Span ID"},
                 unit_overrides=DURATION_NS),
@@ -396,14 +396,14 @@ PREP_MAIN = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace|instru
 PREP_DOMINANT = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace)"
 SKILLS = "skills\\\\..*"
 panels += [
-    bargauge("Where run preparation time goes (avg)", f'{tq(PREP, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 11, ds=TEMPO,
+    bargauge("Where run preparation time goes (avg)", f'{tq(PREP, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 12, ds=TEMPO,
              desc="Mean duration of each top-level preparation phase (heartbeat.prepare.*). Phases run before the provider starts; workspace and configuration contain sub-steps, shown separately."),
-    bargauge("Where configuration time goes (avg)", f'{tq(PREP_CONFIG, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 8, y, 8, 11, ds=TEMPO,
+    bargauge("Where configuration time goes (avg)", f'{tq(PREP_CONFIG, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 8, y, 8, 12, ds=TEMPO,
              desc="Sub-steps of heartbeat.prepare.execution_configuration: skills, secrets, connectors, GitHub and agent identity. They are inside the configuration duration; do not add them to it."),
-    bargauge("Where skills preparation goes (avg)", f'{tq(SKILLS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 16, y, 8, 11, ds=TEMPO,
+    bargauge("Where skills preparation goes (avg)", f'{tq(SKILLS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 16, y, 8, 12, ds=TEMPO,
              desc="Skill inventory, version read, materialization and verification (skills.*). These sit inside configuration_skills."),
 ]
-y += 11
+y += 12
 panels += [
     ts("Preparation over time (avg by phase)", [f'{tq(PREP_MAIN, regex=True)} | avg_over_time(duration) by (name)'],
        "s", 0, y, 12, 8, ds=TEMPO, stack=True, desc="The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower."),
@@ -418,19 +418,19 @@ EXEC = "execution\\\\..*"
 COMP = "completion\\\\..*"
 EXEC_MAIN = "(execution|completion)\\\\.(runtime|usage|run|output|cost|terminal_write)"
 panels += [
-    bargauge("Execution phases (avg)", f'{tq(EXEC, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 11, ds=TEMPO,
+    bargauge("Execution phases (avg)", f'{tq(EXEC, "duration > 0ns", regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 12, ds=TEMPO,
              desc="Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents."),
-    bargauge("Completion phases (avg)", f'{tq(COMP, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 8, y, 8, 11, ds=TEMPO,
+    bargauge("Completion phases (avg)", f'{tq(COMP, "duration > 0ns", regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 8, y, 8, 12, ds=TEMPO,
              desc="Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*)."),
     ts("Execution and completion over time (avg)", [f'{tq(EXEC_MAIN, regex=True)} | avg_over_time(duration) by (name)'],
-       "s", 16, y, 8, 11, ds=TEMPO, stack=True, desc="How long the main post-dispatch phases took per step."),
+       "s", 16, y, 8, 12, ds=TEMPO, stack=True, desc="How long the main post-dispatch phases took per step."),
 ]
-y += 11
+y += 12
 
 # ============================================================================== Startup (native)
 native_start = len(panels)
 panels.append(row("Native runner: startup and first token", y)); y += 1
-STARTUP = r"runner\\.(transport\\.connect|transport\\.activation|transport\\.ready|runtime\\.stage|session\\.bootstrap|session\\.resume|turn\\.submit)"
+STARTUP = r"runner\\.(session\\.(bootstrap|resume)|transport\\.(cold_start|connect|prepare|registration|provider_identity|started_event|turn_start)|turn\\.submit)"
 PREPARE = r"environment\\.acquire|environment\\.workspace\\.realize|skills\\.prepare|heartbeat\\.prepare_before_environment|heartbeat\\.prepare_after_environment|native\\.coordinator\\.claim|heartbeat\\.queue"
 panels += [
     ts("Time to first token", [quant("task.time_to_first_token")], "s", 0, y, 8, 8, ds=TEMPO,
@@ -443,12 +443,12 @@ panels += [
 ]
 y += 8
 panels += [
-    bargauge("Where startup time goes (avg)", f'{tq(STARTUP, regex=True)} | avg_over_time(duration) by (name)', "s", 0, y, 12, 11, ds=TEMPO,
-             desc="Mean duration per Runner startup phase. Nested phases overlap their parents (for example artifact preparation sits inside transport connect), so do not add the bars."),
-    bargauge("Where native preparation time goes (avg)", f'{tq(PREPARE, regex=True)} | avg_over_time(duration) by (name)', "s", 12, y, 12, 11, ds=TEMPO,
+    bargauge("Where startup time goes (avg)", f'{tq(STARTUP, "duration > 0ns", regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 12, 12, ds=TEMPO,
+             desc="Mean duration per Runner startup phase: transport connect, registration, provider identity, cold start, session bootstrap or resume, and turn submit. Phases overlap, so do not add the bars."),
+    bargauge("Where native preparation time goes (avg)", f'{tq(PREPARE, regex=True)} | avg_over_time(duration) by (name)', "s", 12, y, 12, 12, ds=TEMPO,
              desc="Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins."),
 ]
-y += 11
+y += 12
 
 # ============================================================================== Turns and tools (native)
 panels.append(row("Native runner: agent turns and tools", y)); y += 1
@@ -487,55 +487,55 @@ y += 7
 # ============================================================================== Providers (native)
 panels.append(row("Native runner: providers and environment", y)); y += 1
 panels += [
-    bargauge("Turns by provider", f'{tq("agent.turn")} | count_over_time() by ({NS}provider)', "short", 0, y, 8, 7, ds=TEMPO,
-             desc="Agent turns by provider kind (for ACPX the underlying agent, such as claude or codex)."),
-    bargauge("Workspace environment", f'{tq("environment.workspace.realize")} | count_over_time() by ({NS}driver)', "short", 8, y, 8, 7, ds=TEMPO,
+    bargauge("Turns by provider", f'{tq("agent.turn")} | count_over_time() by ({NS}provider)', "short", 0, y, 8, 6, ds=TEMPO,
+             desc="Agent turns by provider kind. Native runs report the ACPX runtime here (acpx); which agent it drives is not exported."),
+    bargauge("Workspace environment", f'{tq("environment.workspace.realize")} | count_over_time() by ({NS}driver)', "short", 8, y, 8, 6, ds=TEMPO,
              desc="Where each run's workspace was realized (paperclip.native.span.driver on environment.workspace.realize): local, or the sandbox provider."),
-    bargauge("Runner transport", f'{tq("runner.transport.selected")} | count_over_time() by ({NS}mode)', "short", 16, y, 8, 7, ds=TEMPO,
+    bargauge("Runner transport", f'{tq("runner.transport.selected")} | count_over_time() by ({NS}mode)', "short", 16, y, 8, 6, ds=TEMPO,
              desc="How the controller reached the Runner (paperclip.native.span.mode on runner.transport.selected), for example local_loopback."),
 ]
-y += 7
+y += 6
 native_end = len(panels)
 
 # ============================================================================== Workspace
 panels.append(row("Workspace and environment", y)); y += 1
 PREP_WS = r"heartbeat\\.prepare\\.workspace_.*"
 panels += [
-    bargauge("Slowest workspace preparation steps (avg)", f'{tq(PREP_WS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 10, 11, ds=TEMPO,
+    bargauge("Slowest workspace preparation steps (avg)", f'{tq(PREP_WS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 10, 12, ds=TEMPO,
              desc="Eight slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it."),
     ts("Workspace data written per 5 min", [f'{{ {TSVC} && span.paperclip.execution.bytes != nil }} | sum_over_time(span.paperclip.execution.bytes)'], "bytes", 10, y, 8, 11,
        ds=TEMPO, bars=True, step="5m", desc="Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes."),
     bargauge("Repository checkout cache", f'{{ {TSVC} && span.paperclip.execution.repositoryCache.outcome != nil }} | count_over_time() by (span.paperclip.execution.repositoryCache.outcome)',
-             "short", 18, y, 6, 11, ds=TEMPO,
+             "short", 18, y, 6, 12, ds=TEMPO,
              desc="Outcome of the pristine repository-object cache lookup when a task checks out a repository: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error. Empty for workspaces without a repository."),
 ]
-y += 11
+y += 12
 
 # ============================================================================== Controller
 panels.append(row("Controller and recovery", y)); y += 1
 CTRL = r"controller\\..*"
 panels += [
-    bargauge("Controller startup phases (slowest)", f'{tq(CTRL, regex=True)} | max_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 11, ds=TEMPO,
+    bargauge("Controller startup phases (slowest)", f'{tq(CTRL, regex=True)} | max_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 12, ds=TEMPO,
              desc="Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one."),
-    ts("Controller span errors per hour", [(per(CTRL, 3600, err=True, regex=True, by="span_name"), "{{span_name}}")], "short", 8, y, 8, 11, bars=True, stack=True,
+    ts("Controller span errors per hour", [(per(CTRL, 3600, err=True, regex=True, by="span_name"), "{{span_name}}")], "short", 8, y, 8, 12, bars=True, stack=True,
        desc="Error spans from controller.* phases per hour. Empty is good."),
-    ts("Native reconciliation passes", [quant("controller.native_reconciliation", "0.5, 0.95")], "s", 16, y, 8, 11, ds=TEMPO,
+    ts("Native reconciliation passes", [quant("controller.native_reconciliation", "0.5, 0.95")], "s", 16, y, 8, 12, ds=TEMPO,
        desc="Duration of native finalization reconciliation passes. Only passes of one second or longer are recorded, so no data means every pass was fast."),
 ]
-y += 11
+y += 12
 
 # ============================================================================== Budget
 BUDGET_ENF = "budget\\\\.(enforcement|cancellation)\\\\..*"
 panels.append(row("Budget", y)); y += 1
 panels += [
-    ts("Budget operations per hour", [(per(r"budget\\..*", 3600, regex=True, by="span_name"), "{{span_name}}")], "short", 0, y, 8, 11, stack=True, bars=True,
+    ts("Budget operations per hour", [(per(r"budget\\..*", 3600, regex=True, by="span_name"), "{{span_name}}")], "short", 0, y, 8, 12, stack=True, bars=True,
        desc="Budget admission, reservation, accounting, settlement, enforcement and cancellation spans (paperclip.budgets tracer)."),
-    ts("Budget accounting lock wait (p95)", [quant("budget.accounting.lock_wait", "0.5, 0.95")], "s", 8, y, 8, 11, ds=TEMPO,
+    ts("Budget accounting lock wait (p95)", [quant("budget.accounting.lock_wait", "0.5, 0.95")], "s", 8, y, 8, 12, ds=TEMPO,
        desc="Time to acquire the company accounting lock. Rises under contention between concurrent runs of one company."),
-    ts("Budget enforcement duration (avg)", [f'{tq(BUDGET_ENF, regex=True)} | avg_over_time(duration) by (name)'], "s", 16, y, 8, 11, ds=TEMPO, stack=True,
+    ts("Budget enforcement duration (avg)", [f'{tq(BUDGET_ENF, regex=True)} | avg_over_time(duration) by (name)'], "s", 16, y, 8, 12, ds=TEMPO, stack=True,
        desc="How long budget enforcement work took: delivery, scope evaluation and cancellation (budget.enforcement.*, budget.cancellation.*)."),
 ]
-y += 11
+y += 12
 
 # ============================================================================== API
 panels.append(row("API", y)); y += 1
@@ -551,15 +551,16 @@ panels += [
 y += 8
 panels += [
     tempo_table("Slowest API requests (over 250 ms, slowest first)",
-                f'{{ {TSVC} && kind = server && duration > 250ms }} | select(span.http.request.method, span.url.path, span.http.response.status_code)', 0, y, 16, 11, "spans",
-                hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "http.request.method", "url.path", "http.response.status_code", "time", "spanID"],
+                f'{{ {TSVC} && kind = server && duration > 250ms }} | select(span.http.request.method, span.url.path, span.http.response.status_code)', 0, y, 16, 12, "spans",
+                hide=COMMON_HIDE + ["name", "kind"], sort="duration", order=["duration", "http.request.method", "url.path", "http.response.status_code", "time", "spanID"],
                 desc="The path is the request path as received, so it can contain task or agent IDs.",
                 rename={"duration": "Duration", "http.request.method": "Method", "url.path": "Path", "http.response.status_code": "Status", "time": "Start", "spanID": "Span ID"},
-                unit_overrides=DURATION_NS),
-    bargauge("Task detail read phases (avg)", f'{tq(ISSUE_READ, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 16, y, 8, 11, ds=TEMPO,
+                unit_overrides=DURATION_NS + [{"matcher": {"id": "byName", "options": "Path"}, "properties": [{"id": "custom.width", "value": 420}]},
+                                              {"matcher": {"id": "byName", "options": "Method"}, "properties": [{"id": "custom.width", "value": 80}]}]),
+    bargauge("Task detail read phases (avg)", f'{tq(ISSUE_READ, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 16, y, 8, 12, ds=TEMPO,
              desc="GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap."),
 ]
-y += 11
+y += 12
 
 # ============================================================================== Chat
 # Collapsed: these only fill when a Slack connection is set up, so they stay out of the way until opened.
@@ -641,6 +642,7 @@ RENAMES = {
     "Controller span errors per hour": strip(r"controller\.(?:startup\.)?"),
     "Task detail read phases (avg)": strip(r"issue\.read\."),
     "Budget operations per hour": strip(r"budget\."),
+    "Budget enforcement duration (avg)": strip(r"budget\."),
 }
 RENAMES["Workspace data written per 5 min"] = rn(("/^sum_over_time$/", "bytes written"))
 RENAMES["Receipt queue time (avg)"] = rn(("/^avg_over_time$/", "queue time"))

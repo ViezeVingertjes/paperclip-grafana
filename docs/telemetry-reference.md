@@ -52,8 +52,9 @@ task.provider_session                      root of a run; links to the server's 
 ├── task.prepare ── environment.startup (environment.acquire, environment.workspace.realize), skills.prepare,
 │                   heartbeat.prepare_before_environment, heartbeat.prepare_after_environment, native.coordinator.claim
 ├── native.session.execute
-│   ├── runner.session.startup ── runner.transport.{connect,activation,ready}, runner.runtime.stage (stage.sync ...),
-│   │                             runner.session.bootstrap | runner.session.resume, runner.turn.submit
+│   ├── runner.session.startup ── runner.transport.{selected,prepare,registration,cold_start,connect,provider_identity,
+│   │                             started_event,turn_start,command_ack}, runner.session.bootstrap | runner.session.resume,
+│   │                             runner.turn.submit
 │   └── agent.turn ── runner.turn.submitted_to_started, provider.time_to_first_agent_event,
 │                     tool.request.input_stream, tool.execute
 ├── task.settle ── native.result.finalize, session.checkpoint.persist
@@ -66,17 +67,18 @@ A failed run or phase has an **error status** on its span; that is what every fa
 |---|---|---|
 | `paperclip.task.run.run_id` | roots, preparation | Run (hash) column in the run tables |
 | `paperclip.task.run.runtime`, `.outcome`, `.wall_ms`, `.trace_schema_version` | `task.provider_session` | Run tables |
-| `paperclip.native.span.provider` | `agent.turn` | Turns by provider (for ACPX, the underlying agent) |
-| `paperclip.native.span.harness`, `.lifecycleMode`, `.bytesTransferred` | native session span | Sessions by harness and lifecycle, bytes transferred |
-| `paperclip.native.span.operation` | `tool.execute`, `tool.request.input_stream` | Tools by operation (a known semantic name, or `other`) |
+| `paperclip.native.span.provider` | `agent.turn` | Turns by provider (`acpx` for native Claude runs; the agent behind it is not exported) |
+| `paperclip.native.span.driver` | `environment.workspace.realize` | Where the workspace was realized (`local`, or a sandbox provider) |
+| `paperclip.native.span.mode` | `runner.transport.selected`, `runner.session.startup` | Runner transport (`local_loopback`) and session start (`bootstrap`, `resume`) |
+| `paperclip.native.span.operation` | `tool.execute`, `tool.request.input_stream` | Tools by operation (observed: `create_task`, `get_task_context`, `list_agents`, `other`) |
 | `paperclip.native.span.eventKind`, `.duration_ms`, `.outcome` | `task.time_to_first_token`, others | `reasoning` or `agentMessage` first text |
 
 ### Server-side preparation and workspace (`paperclip.heartbeat-preparation`, `paperclip.execution`)
 
 `task.execution_attempt`, `task.workspace_finalization`, `heartbeat.prepare.<phase>` (including `workspace_*` and
 `configuration_*`), `workspace.*`, `workspace_sync.*`, `runtime_selection.*`, `runtime_context.*`, `skills.*`,
-`connectors.*`, `completion.*`, `response.*`. Detail spans are capped at 16 per name per attempt. The dashboard reads the
-main `workspace_sync.*` phases and `heartbeat.prepare.workspace*`, plus:
+`connectors.*`, `completion.*`, `response.*`. Detail spans are capped at 16 per name per attempt. The dashboard reads
+`heartbeat.prepare.*`, `skills.*`, `execution.*` and `completion.*`, plus:
 
 | Attribute | Meaning |
 |---|---|
@@ -94,8 +96,9 @@ second or more, with `paperclip.native_reconciliation.scoped` and `.candidates`.
 ### Budget (`paperclip.budgets`)
 
 `budget.admission.{evaluate,reserve}`, `budget.accounting.{transaction,settlement,lock_wait,recover}`,
-`budget.exposure.evaluate`, `budget.enforcement.{deliver,scope}`, `budget.cancellation.deliver`, with the attributes
-`budget.policy_count` and `budget.enforcement.queue_delay_ms`.
+`budget.exposure.evaluate`, `budget.enforcement.{deliver,scope}`, `budget.cancellation.deliver`. Paperclip documents the
+attributes `budget.policy_count` and `budget.enforcement.queue_delay_ms`; neither was present on the real spans, so the
+dashboard charts the spans' durations instead.
 
 ### Task detail and chat
 
@@ -112,6 +115,11 @@ instrumentations are disabled by Paperclip). Measured on a real instance: server
 adds a database instrumentation, add panels for it in the generator.
 
 ## Not in the dashboard
+
+Documented by Paperclip but **not observed** on a real local instance, and therefore not charted (a panel built on a
+span nobody has seen would be a guess): `workspace_sync.*` (remote and sandbox targets), the attributes
+`paperclip.native.span.{harness,lifecycleMode,bytesTransferred}`, and the PostgreSQL client spans. If you run remote
+or sandbox targets and see them in Tempo, panels for them are a welcome contribution.
 
 - **First-party usage telemetry** (anonymous, on by default, `PAPERCLIP_TELEMETRY_DISABLED=1` turns it off) goes to
   Paperclip's own service, not to OTLP.
