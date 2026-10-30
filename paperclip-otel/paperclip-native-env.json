@@ -1,0 +1,4 @@
+{
+  "PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT": "/opt/paperclip-runner/provider-pack",
+  "PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST": "/opt/paperclip-runner/provider-pack/package.json"
+}

@@ -58,6 +58,12 @@ if (( uninstall )); then
   exit 0
 fi
 
+# The network quadlet is a oneshot that stays "active" after `podman network rm`, so systemd would not recreate it and the
+# first container that names it fails with "network not found". Create it if it is missing.
+ensure_network() {
+  podman network exists paperclip-net 2>/dev/null || systemctl --user restart paperclip-net-network.service
+}
+
 # ---- standalone actions for a stack that already exists ----------------------------------------------------------
 if [[ -n "$import_url" ]]; then
   command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
@@ -80,6 +86,7 @@ if (( join_network )); then
     grep -q '^Network=paperclip-net.network' "$unit" || { echo "Could not add the network to $unit; add 'Network=paperclip-net.network' to its [Container] section by hand." >&2; exit 1; }
   fi
   systemctl --user daemon-reload
+  ensure_network
   systemctl --user restart otel-lgtm.service
   echo -n "Waiting for Grafana"
   for _ in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3000/api/health && break; echo -n "."; sleep 2; done
@@ -127,6 +134,7 @@ if ! systemctl --user is-active --quiet otel-lgtm.service; then
   podman rm -f otel-lgtm >/dev/null 2>&1 || true    # a container started by hand would clash with the service's name
 fi
 systemctl --user daemon-reload
+ensure_network
 systemctl --user restart otel-lgtm.service
 
 # A rootless service starts at boot (without a login) only if lingering is enabled for the user.

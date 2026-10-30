@@ -5,6 +5,17 @@ the project uses [Semantic Versioning](https://semver.org/). Upgrade notes are i
 
 ## [Unreleased]
 
+### Added
+- `apply-paperclip-otel.py --native` (and `paperclip-native-env.json`): sets `PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT` and
+  `_MANIFEST` so native `paperclip_runner` agents pass Paperclip's ACPX installation check in the official image.
+- README: *Agents that report properly* (login origins, agent JWT secret, Claude Code telemetry for legacy and native
+  agents, native-runner checklist, budgets with subscriptions) and matching troubleshooting rows.
+- The `paperclip-otel` build warns when the Paperclip image has no run-level spans (the stable image of 2026.1023.0).
+
+### Fixed
+- `install.sh` recreates the `paperclip-net` network when the quadlet unit still reports "active" after the network was
+  removed, which made the first container that used it fail with `network not found`.
+
 ## [1.0.0] - 2026-10-30
 
 First release: a local Grafana dashboard for Paperclip's OpenTelemetry traces, checked against a real Paperclip instance

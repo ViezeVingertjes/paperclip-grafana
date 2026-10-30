@@ -19,6 +19,9 @@ USER root
 # Paperclip's Dockerfile ends with a "cloud" stage that adds a nested server/node_modules/.pnpm and breaks the native
 # Runner (admission_installation). Say so at build time; the default image is the "production" target.
 RUN if [ -d "${APP_DIR}/server/node_modules/.pnpm" ]; then echo "WARNING: base image is Paperclip's cloud stage; native runner runs will fail. Rebuild it with --target production." >&2; fi
+# Run-level and native spans (task.*, native.*, runner.*) exist only in builds from mid-October 2026 on; the older stable
+# image exports HTTP/DB spans only, which leaves most dashboard rows empty. Warn at build time.
+RUN if ! grep -rqs "task.execution_attempt" "${APP_DIR}/server/dist"; then echo "WARNING: this Paperclip build has no run-level spans (task.execution_attempt); most dashboard rows will stay empty. Use a newer image, e.g. ghcr.io/paperclipai/paperclip:nightly or :beta." >&2; fi
 RUN set -eux; \
     mkdir -p /opt/paperclip-otel "${APP_DIR}/node_modules/@opentelemetry"; \
     cd /opt/paperclip-otel; \
