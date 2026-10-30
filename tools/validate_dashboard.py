@@ -47,6 +47,7 @@ def walk(panels):
 
 
 bad = 0
+limited = []   # TraceQL metrics queries Tempo refuses because the range is over its limit (24 h by default)
 empty = []
 for p in walk(d["panels"]):
     for t in p.get("targets", []):
@@ -61,6 +62,8 @@ for p in walk(d["panels"]):
         else:   # TraceQL search
             r = get("/api/datasources/proxy/uid/tempo/api/search", {"q": q, "start": start, "end": now, "limit": 5})
             ok = "error" not in r and "status" not in r; n = len(r.get("traces", [])) if ok else r.get("error")
+        if not ok and "exceeds the maximum allowed duration" in str(n):
+            limited.append(p["title"]); print(f"lim    -   {time.time() - t0:5.1f}s  [{ds[:4]}] {p['title'][:48]}  (Tempo range limit)"); continue
         flag = "ok " if ok else "ERR"
         if not ok:
             bad += 1
@@ -68,6 +71,8 @@ for p in walk(d["panels"]):
             empty.append(p["title"])
         print(f"{flag} {str(n):>4} {time.time() - t0:5.1f}s  [{ds[:4]}] {p['title'][:48]}" + ("" if ok else f"\n      {n}"))
 print("FAILED:", bad)
+if limited:
+    print(f"{len(limited)} TraceQL metrics queries are over Tempo's range limit at {rng} (not failures: pick 24h or less for those panels)")
 if empty:
     print(f"{len(empty)} queries returned no series (fine for panels that only fill when something happens, e.g. failures)")
 sys.exit(1 if bad else 0)

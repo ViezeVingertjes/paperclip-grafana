@@ -65,8 +65,12 @@ jobs:
         run: python3 tools/send_sample_telemetry.py
       - name: Give Tempo a moment to ingest it and generate span metrics
         run: sleep 30
-      - name: Validate the dashboard
-        run: python3 tools/validate_dashboard.py --range 3h
+      - name: Validate the dashboard at several ranges
+        run: |
+          for range in 15m 3h 24h; do
+            echo "== $range"
+            python3 tools/validate_dashboard.py --range "$range"
+          done
       - name: Stack logs
         if: failure()
         run: docker compose logs

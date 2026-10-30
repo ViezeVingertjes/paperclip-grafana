@@ -84,6 +84,23 @@ class GeneratedDashboard(unittest.TestCase):
                 self.assertIn(t["metricsQueryType"], ("range", "instant"), title)
                 self.assertEqual(t["datasource"]["type"], "tempo", title)
 
+    def test_charts_have_a_one_minute_minimum_step(self):
+        # A 5-minute floor left a 15-minute view with 3 points per chart.
+        for p in walk(self.d["panels"]):
+            if p["type"] == "timeseries":
+                self.assertEqual(p.get("interval"), "1m", p["title"])
+
+    def test_every_traceql_metrics_panel_names_tempos_24_hour_limit(self):
+        for p in walk(self.d["panels"]):
+            if any("metricsQueryType" in t for t in p.get("targets", [])):
+                self.assertIn("24 h", p["description"], p["title"])
+
+    def test_rate_panels_are_scaled_to_a_fixed_unit_not_to_the_interval(self):
+        # "per hour" / "per minute" titles must multiply the per-second rate, so the axis means the same at every range.
+        for title, t in targets(self.d):
+            if t["datasource"]["type"] == "prometheus" and "rate(" in query(t) and ("per hour" in title or "per minute" in title):
+                self.assertRegex(query(t), r"\* (3600|60)\b", title)
+
     def test_committed_dashboard_matches_the_generator(self):
         out = subprocess.run([sys.executable, "-I", os.path.join(ROOT, "tools", "gen_dashboard.py")],
                              check=True, capture_output=True, text=True).stdout

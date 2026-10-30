@@ -192,7 +192,7 @@ Green, orange and red always mean *fine*, *watch this* and *act*; everything els
 
 | Tile | Rule |
 |---|---|
-| Run failure rate | failure share now / over 7 days (lightly smoothed) |
+| Run failure rate | failure share now / over 7 days, pulled toward your usual rate when the range holds only a few runs |
 | Run duration, run configuration, workspace preparation, API latency | mean now / mean over 7 days. 1.00x = as usual |
 | Failed runs, API server errors, controller errors | counts; a healthy setup has none, so any occurrence is orange |
 
@@ -208,13 +208,17 @@ below 95%, red below 85%). Chart colours carry no health meaning: failed is red 
 
 ```bash
 python3 tools/gen_dashboard.py > dashboards/paperclip.json
-python3 tools/validate_dashboard.py --range 24h   # runs every query; 15m, 3h, 24h or 7d
+python3 tools/validate_dashboard.py --range 24h   # runs every query; also try 15m, 3h and 7d (at 7d, TraceQL metrics hit Tempo's 24 h limit and are reported as such)
 ```
 
 The validator queries Grafana anonymously; set `GRAFANA_PASSWORD` if anonymous viewing is off. CI runs the same check on
 every push: it starts the stack with `docker compose up -d`, feeds it with `tools/send_sample_telemetry.py` (Paperclip-shaped
 sample traces, because there is no Paperclip in CI), and runs the validator against that, so a query that errors against a
 live Grafana fails the build. **Never run the sample sender against a stack that holds your real telemetry.**
+
+Charts are built to read the same at any range: counts and rates are expressed per hour or per minute (not per interval),
+the minimum step is one minute (so a 15-minute view still has 15 points), and counts per fixed 5-minute step are titled as
+such. The one hard limit is Tempo's 24 h cap on TraceQL metrics, which every affected panel mentions in its description.
 
 Names and empty states are set in one block near the end of the script (`RENAMES`, `EMPTY_IS_GOOD`, `STAT_STEPS`), so a
 new span name never means touching a query.
@@ -264,7 +268,9 @@ Data lives in `~/.local/share/otel-lgtm` (`docker compose down -v` for the compo
 | Dashboard is empty | Paperclip reads its OpenTelemetry settings at startup: restart it. Check the *Spans per minute* tile and Paperclip's log. |
 | Paperclip logs "the @opentelemetry/* packages are not installed" | Run it from the `paperclip-otel` image (`./install.sh --build-image`), at the versions its `server/package.json` declares. |
 | Paperclip cannot reach the collector | A container cannot use a port published on the host's `127.0.0.1`. Put both on `paperclip-net` and export to `http://otel-lgtm:4317`; for a stack started by something else, `podman network connect paperclip-net otel-lgtm`. |
+| Percentile and breakdown panels show an error on long ranges | They come from TraceQL metrics, and Tempo answers at most **24 h** per query (`query_frontend.metrics.max_duration`; raise it on a Tempo you run yourself). Pick 24 h or less for those panels; counts, rates, health tiles and the trace tables work on any range. |
 | Percentile panels are empty but counts are not | Percentiles come from TraceQL metrics, which only cover recent data; run something and look at a short range. |
+| Counts and rates look short on a long range | `otel-lgtm` keeps about 15 days of metrics; the 7-day baseline in the health tiles needs that much history to be meaningful. |
 | Native runner runs fail with `admission_installation` | You built Paperclip's last Dockerfile stage, the `cloud` variant, which adds a nested `/app/server/node_modules/.pnpm` and breaks the runner sidecar's provider-package lookup. Build with `--target production`, which is what Paperclip's own CI pins. |
 | Native runner runs fail with `session_ensure_failed` | The native runner starts the agent in a sanitized environment and does not see the host's Claude login. Give the agent a credential it accepts: `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token) or `ANTHROPIC_API_KEY`, through Paperclip's secrets or the agent's connection setup. |
 | Stack does not start at boot | Lingering is off: run `sudo loginctl enable-linger $USER`. |

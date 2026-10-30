@@ -59,6 +59,13 @@ check *Spans per minute* in the Telemetry pipeline row, widen the time range, an
 [`telemetry-reference.md`](telemetry-reference.md) with the spans in Tempo. Percentile panels need runs *in the range*;
 run something, and note that Tempo only keeps recent data for TraceQL metrics.
 
+## Why do some panels show an error when I pick 7 days?
+
+Percentiles and the breakdowns by span attribute come from TraceQL metrics, and Tempo answers at most 24 hours per query
+(`query_frontend.metrics.max_duration`, 24 h in `grafana/otel-lgtm`). Counts, rates, error ratios, the health tiles and the
+trace tables use span metrics or searches and work on any range. For a longer view of a percentile, pick a 24 h window
+and move it back in time, or raise the limit on a Tempo you run yourself.
+
 ## Why do durations in the health tiles use means, not percentiles?
 
 Because those tiles divide "now" by "your usual last 7 days", which only PromQL can do, and span-metric percentiles

@@ -1,7 +1,7 @@
 {
   "uid": "paperclip",
   "title": "Paperclip",
-  "description": "Agent runs, startup and first-token latency, turns and tools, workspace sync, controller, budget, HTTP and database performance for Paperclip, derived from its OpenTelemetry traces.",
+  "description": "Agent runs, startup and first-token latency, turns and tools, workspace, controller, budget and API performance for Paperclip, derived from its OpenTelemetry traces. Percentiles and attribute breakdowns come from TraceQL metrics and cover at most 24 h; counts, rates and health tiles cover any range.",
   "tags": [
     "paperclip",
     "otel"
@@ -154,7 +154,7 @@
       "id": 3,
       "type": "stat",
       "title": "Run failure rate vs usual",
-      "description": "Share of runs that failed now (dashboard range) divided by the same figure over your last 7d: 1.0x = as usual. Orange from 1.5x, red from 2.5x.",
+      "description": "Share of runs that failed now (dashboard range) divided by the same figure over your last 7d: 1.0x = as usual. Orange from 1.5x, red from 2.5x. Short windows are pulled toward your usual rate (a prior worth 10 runs), so a quiet range cannot raise a false alarm.",
       "gridPos": {
         "x": 6,
         "y": 1,
@@ -171,7 +171,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "((((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0)) + 1) / ((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) or vector(0)) + 2)) / (((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[7d]))) or vector(0)) + 1) / ((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d]))) or vector(0)) + 2))) or vector(-1)",
+          "expr": "((((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0)) + 10 * (((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[7d]))) or vector(0)) + 1) / ((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d]))) or vector(0)) + 2))) / ((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) or vector(0)) + 10)) / (((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[7d]))) or vector(0)) + 1) / ((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d]))) or vector(0)) + 2))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -381,7 +381,7 @@
       "id": 6,
       "type": "stat",
       "title": "Run duration vs usual",
-      "description": "Mean run (executor invocation) duration now (dashboard range) divided by the same figure over your last 7d: 1.0x = as usual. Orange from 1.5x, red from 2.5x. Means are used because span-metric percentiles stop at 16 s; percentiles are in the Runs row.",
+      "description": "Mean run (executor invocation) duration now (dashboard range) divided by the same figure over your last 7d: 1.0x = as usual. Orange from 1.5x, red from 2.5x. Means are used because span-metric percentiles stop at 16 s; percentiles are in the Runs row. Short windows are pulled toward your usual mean, so a quiet range cannot swing the tile.",
       "gridPos": {
         "x": 0,
         "y": 5,
@@ -398,7 +398,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])))) or vector(-1)",
+          "expr": "(((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) + 10 * (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])))) / (sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) + 10)) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d]))) and (sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) > 0)) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -493,7 +493,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])))) or vector(-1)",
+          "expr": "(((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range])) + 10 * (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])))) / (sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range])) + 10)) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d]))) and (sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range])) > 0)) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -588,7 +588,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])))) or vector(-1)",
+          "expr": "(((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range])) + 10 * (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])))) / (sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range])) + 10)) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d]))) and (sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range])) > 0)) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -1141,7 +1141,7 @@
       "id": 17,
       "type": "stat",
       "title": "Run duration p95",
-      "description": "95th percentile of run duration (TraceQL metrics; no 16 s cap).",
+      "description": "95th percentile of run duration (TraceQL metrics; no 16 s cap). TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 14,
@@ -1196,7 +1196,7 @@
       "id": 18,
       "type": "stat",
       "title": "Configuration p95",
-      "description": "95th percentile of run configuration time (skills, secrets, connectors, identity).",
+      "description": "95th percentile of run configuration time (skills, secrets, connectors, identity). TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 4,
         "y": 14,
@@ -1251,7 +1251,7 @@
       "id": 19,
       "type": "stat",
       "title": "API latency p95",
-      "description": "95th percentile of HTTP server span duration.",
+      "description": "95th percentile of HTTP server span duration. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 14,
@@ -1669,7 +1669,7 @@
       "id": 25,
       "type": "timeseries",
       "title": "Run duration",
-      "description": "Duration of one executor invocation (admission reads, preparation, provider dispatch and inline settlement). Deferred work such as workspace finalization is separate. p95 is dashed.",
+      "description": "Duration of one executor invocation (admission reads, preparation, provider dispatch and inline settlement). Deferred work such as workspace finalization is separate. p95 is dashed. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 19,
@@ -1693,7 +1693,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -2151,7 +2151,7 @@
       "id": 31,
       "type": "bargauge",
       "title": "Where run preparation time goes (avg)",
-      "description": "Mean duration of each top-level preparation phase (heartbeat.prepare.*). Phases run before the provider starts; workspace and configuration contain sub-steps, shown separately.",
+      "description": "Mean duration of each top-level preparation phase (heartbeat.prepare.*). Phases run before the provider starts; workspace and configuration contain sub-steps, shown separately. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 44,
@@ -2288,7 +2288,7 @@
       "id": 32,
       "type": "bargauge",
       "title": "Where configuration time goes (avg)",
-      "description": "Sub-steps of heartbeat.prepare.execution_configuration: skills, secrets, connectors, GitHub and agent identity. They are inside the configuration duration; do not add them to it.",
+      "description": "Sub-steps of heartbeat.prepare.execution_configuration: skills, secrets, connectors, GitHub and agent identity. They are inside the configuration duration; do not add them to it. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 44,
@@ -2425,7 +2425,7 @@
       "id": 33,
       "type": "bargauge",
       "title": "Where skills preparation goes (avg)",
-      "description": "Skill inventory, version read, materialization and verification (skills.*). These sit inside configuration_skills.",
+      "description": "Skill inventory, version read, materialization and verification (skills.*). These sit inside configuration_skills. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 44,
@@ -2562,7 +2562,7 @@
       "id": 34,
       "type": "timeseries",
       "title": "Preparation over time (avg by phase)",
-      "description": "The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower.",
+      "description": "The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 56,
@@ -2586,7 +2586,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -2698,7 +2698,7 @@
       "id": 35,
       "type": "timeseries",
       "title": "Preparation phase p95",
-      "description": "95th percentile of the two phases that usually dominate preparation.",
+      "description": "95th percentile of the two phases that usually dominate preparation. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 12,
         "y": 56,
@@ -2722,7 +2722,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -2866,7 +2866,7 @@
       "id": 37,
       "type": "bargauge",
       "title": "Execution phases (avg)",
-      "description": "Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents.",
+      "description": "Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 65,
@@ -3003,7 +3003,7 @@
       "id": 38,
       "type": "bargauge",
       "title": "Completion phases (avg)",
-      "description": "Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*).",
+      "description": "Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*). TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 65,
@@ -3140,7 +3140,7 @@
       "id": 39,
       "type": "timeseries",
       "title": "Execution and completion over time (avg)",
-      "description": "How long the main post-dispatch phases took per step.",
+      "description": "How long the main post-dispatch phases took per step. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 65,
@@ -3164,7 +3164,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -3282,7 +3282,7 @@
       "id": 41,
       "type": "timeseries",
       "title": "Time to first token",
-      "description": "Wait until the first deliverable text, measured from the accepted trigger (queueing, preparation, startup, provider latency and ingestion). p95 is dashed.",
+      "description": "Wait until the first deliverable text, measured from the accepted trigger (queueing, preparation, startup, provider latency and ingestion). p95 is dashed. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 78,
@@ -3306,7 +3306,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -3416,7 +3416,7 @@
       "id": 42,
       "type": "timeseries",
       "title": "Runner startup",
-      "description": "Runner session startup: transport, runtime staging and workspace sync, until the first durable turn.submitted event. p95 is dashed.",
+      "description": "Runner session startup: transport, runtime staging and workspace sync, until the first durable turn.submitted event. p95 is dashed. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 78,
@@ -3440,7 +3440,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -3625,7 +3625,7 @@
       "id": 44,
       "type": "bargauge",
       "title": "Where startup time goes (avg)",
-      "description": "Mean duration per Runner startup phase: transport connect, registration, provider identity, cold start, session bootstrap or resume, and turn submit. Phases overlap, so do not add the bars.",
+      "description": "Mean duration per Runner startup phase: transport connect, registration, provider identity, cold start, session bootstrap or resume, and turn submit. Phases overlap, so do not add the bars. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 86,
@@ -3762,7 +3762,7 @@
       "id": 45,
       "type": "bargauge",
       "title": "Where native preparation time goes (avg)",
-      "description": "Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins.",
+      "description": "Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 12,
         "y": 86,
@@ -3912,7 +3912,7 @@
       "id": 47,
       "type": "timeseries",
       "title": "Turn duration",
-      "description": "From turn.submitted to the provider terminal event. Includes model time and tool use. p95 is dashed.",
+      "description": "From turn.submitted to the provider terminal event. Includes model time and tool use. p95 is dashed. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 99,
@@ -3936,7 +3936,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -4110,7 +4110,7 @@
       "id": 49,
       "type": "timeseries",
       "title": "Turn latency to first activity (p95)",
-      "description": "submitted_to_started: time for the provider to accept the turn. time_to_first_agent_event: first meaningful provider activity (assistant or reasoning text, or a tool announcement), not a finished answer.",
+      "description": "submitted_to_started: time for the provider to accept the turn. time_to_first_agent_event: first meaningful provider activity (assistant or reasoning text, or a tool announcement), not a finished answer. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 99,
@@ -4134,7 +4134,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -4265,7 +4265,7 @@
       "id": 50,
       "type": "timeseries",
       "title": "Tool executions per 5 min by tool",
-      "description": "Native control-plane tool calls by their known semantic operation (anything else is 'other'). Counts per fixed 5-minute step; no arguments or call IDs are exported.",
+      "description": "Native control-plane tool calls by their known semantic operation (anything else is 'other'). Counts per fixed 5-minute step; no arguments or call IDs are exported. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 107,
@@ -4290,7 +4290,7 @@
           "step": "5m"
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "si:",
@@ -4380,7 +4380,7 @@
       "id": 51,
       "type": "timeseries",
       "title": "Tool failures per 5 min by tool",
-      "description": "Tool executions that ended in an error status. Empty is good.",
+      "description": "Tool executions that ended in an error status. Empty is good. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 107,
@@ -4405,7 +4405,7 @@
           "step": "5m"
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "si:",
@@ -4495,7 +4495,7 @@
       "id": 52,
       "type": "timeseries",
       "title": "Tool execution p95 by tool",
-      "description": "Authorization plus execution inside the server authority, including HTTP request time.",
+      "description": "Authorization plus execution inside the server authority, including HTTP request time. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 107,
@@ -4519,7 +4519,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -4629,7 +4629,7 @@
       "id": 53,
       "type": "timeseries",
       "title": "Tool request input streaming (p95)",
-      "description": "From a tool announcement to its last input update. Includes provider buffering and transport; not the exact end of model generation.",
+      "description": "From a tool announcement to its last input update. Includes provider buffering and transport; not the exact end of model generation. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 115,
@@ -4653,7 +4653,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -4875,7 +4875,7 @@
       "id": 56,
       "type": "bargauge",
       "title": "Turns by provider",
-      "description": "Agent turns by provider kind. Native runs report the ACPX runtime here (acpx); which agent it drives is not exported.",
+      "description": "Agent turns by provider kind. Native runs report the ACPX runtime here (acpx); which agent it drives is not exported. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 123,
@@ -4990,7 +4990,7 @@
       "id": 57,
       "type": "bargauge",
       "title": "Workspace environment",
-      "description": "Where each run's workspace was realized (paperclip.native.span.driver on environment.workspace.realize): local, or the sandbox provider.",
+      "description": "Where each run's workspace was realized (paperclip.native.span.driver on environment.workspace.realize): local, or the sandbox provider. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 123,
@@ -5105,7 +5105,7 @@
       "id": 58,
       "type": "bargauge",
       "title": "Runner transport",
-      "description": "How the controller reached the Runner (paperclip.native.span.mode on runner.transport.selected), for example local_loopback.",
+      "description": "How the controller reached the Runner (paperclip.native.span.mode on runner.transport.selected), for example local_loopback. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 123,
@@ -5233,7 +5233,7 @@
       "id": 60,
       "type": "bargauge",
       "title": "Slowest workspace preparation steps (avg)",
-      "description": "Eight slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it.",
+      "description": "Eight slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 130,
@@ -5370,7 +5370,7 @@
       "id": 61,
       "type": "timeseries",
       "title": "Workspace data written per 5 min",
-      "description": "Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes.",
+      "description": "Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 10,
         "y": 130,
@@ -5395,7 +5395,7 @@
           "step": "5m"
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "bytes",
@@ -5493,7 +5493,7 @@
       "id": 62,
       "type": "bargauge",
       "title": "Repository checkout cache",
-      "description": "Outcome of the pristine repository-object cache lookup when a task checks out a repository: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error. Empty for workspaces without a repository.",
+      "description": "Outcome of the pristine repository-object cache lookup when a task checks out a repository: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error. Empty for workspaces without a repository. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 18,
         "y": 130,
@@ -5621,7 +5621,7 @@
       "id": 64,
       "type": "bargauge",
       "title": "Controller startup phases (slowest)",
-      "description": "Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one.",
+      "description": "Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 143,
@@ -5844,7 +5844,7 @@
       "id": 66,
       "type": "timeseries",
       "title": "Native reconciliation passes",
-      "description": "Duration of native finalization reconciliation passes. Only passes of one second or longer are recorded, so no data means every pass was fast.",
+      "description": "Duration of native finalization reconciliation passes. Only passes of one second or longer are recorded, so no data means every pass was fast. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 143,
@@ -5868,7 +5868,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -6077,7 +6077,7 @@
       "id": 69,
       "type": "timeseries",
       "title": "Budget accounting lock wait (p95)",
-      "description": "Time to acquire the company accounting lock. Rises under contention between concurrent runs of one company.",
+      "description": "Time to acquire the company accounting lock. Rises under contention between concurrent runs of one company. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 156,
@@ -6101,7 +6101,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -6211,7 +6211,7 @@
       "id": 70,
       "type": "timeseries",
       "title": "Budget enforcement duration (avg)",
-      "description": "How long budget enforcement work took: delivery, scope evaluation and cancellation (budget.enforcement.*, budget.cancellation.*).",
+      "description": "How long budget enforcement work took: delivery, scope evaluation and cancellation (budget.enforcement.*, budget.cancellation.*). TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 156,
@@ -6235,7 +6235,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -6360,7 +6360,7 @@
       "id": 72,
       "type": "timeseries",
       "title": "HTTP requests per 5 min by method",
-      "description": "Server spans from the HTTP auto-instrumentation, by request method. Attribute names follow the stable OpenTelemetry semantic conventions.",
+      "description": "Server spans from the HTTP auto-instrumentation, by request method. Attribute names follow the stable OpenTelemetry semantic conventions. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 0,
         "y": 169,
@@ -6385,7 +6385,7 @@
           "step": "5m"
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "si:",
@@ -6475,7 +6475,7 @@
       "id": 73,
       "type": "timeseries",
       "title": "HTTP latency p95 by method",
-      "description": "",
+      "description": "TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 8,
         "y": 169,
@@ -6499,7 +6499,7 @@
           "limit": 50
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "s",
@@ -6609,7 +6609,7 @@
       "id": 74,
       "type": "timeseries",
       "title": "HTTP responses per 5 min by status",
-      "description": "Responses by HTTP status code. Anything 5xx also shows as an error span.",
+      "description": "Responses by HTTP status code. Anything 5xx also shows as an error span. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 169,
@@ -6634,7 +6634,7 @@
           "step": "5m"
         }
       ],
-      "interval": "5m",
+      "interval": "1m",
       "fieldConfig": {
         "defaults": {
           "unit": "si:",
@@ -6852,7 +6852,7 @@
       "id": 76,
       "type": "bargauge",
       "title": "Task detail read phases (avg)",
-      "description": "GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap.",
+      "description": "GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
       "gridPos": {
         "x": 16,
         "y": 177,
@@ -7001,7 +7001,7 @@
           "id": 77,
           "type": "timeseries",
           "title": "Slack receipt reactions per 5 min",
-          "description": "Eyes reactions acknowledging durable receipt of a Slack message: confirmed or failed. Failed attempts are not acknowledgement latency samples.",
+          "description": "Eyes reactions acknowledging durable receipt of a Slack message: confirmed or failed. Failed attempts are not acknowledgement latency samples. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
           "gridPos": {
             "x": 0,
             "y": 190,
@@ -7026,7 +7026,7 @@
               "step": "5m"
             }
           ],
-          "interval": "5m",
+          "interval": "1m",
           "fieldConfig": {
             "defaults": {
               "unit": "si:",
@@ -7059,13 +7059,64 @@
               "mode": "multi",
               "sort": "desc"
             }
-          }
+          },
+          "transformations": [
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^0\\.5(?:0*)$/",
+                "renamePattern": "p50"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^0\\.95$/",
+                "renamePattern": "p95"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+                "renamePattern": "p50 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+                "renamePattern": "p95 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "p50 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{p=0\\.95, [^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "p95 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "$1"
+              }
+            }
+          ]
         },
         {
           "id": 78,
           "type": "timeseries",
           "title": "Receipt delivery age (avg)",
-          "description": "Durable inbound receipt to provider confirmation. Excludes Slack-to-webhook transit and SDK parsing.",
+          "description": "Durable inbound receipt to provider confirmation. Excludes Slack-to-webhook transit and SDK parsing. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
           "gridPos": {
             "x": 8,
             "y": 190,
@@ -7089,7 +7140,7 @@
               "limit": 50
             }
           ],
-          "interval": "5m",
+          "interval": "1m",
           "fieldConfig": {
             "defaults": {
               "unit": "ms",
@@ -7123,13 +7174,64 @@
               "mode": "multi",
               "sort": "desc"
             }
-          }
+          },
+          "transformations": [
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^0\\.5(?:0*)$/",
+                "renamePattern": "p50"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^0\\.95$/",
+                "renamePattern": "p95"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+                "renamePattern": "p50 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+                "renamePattern": "p95 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "p50 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{p=0\\.95, [^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "p95 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "$1"
+              }
+            }
+          ]
         },
         {
           "id": 79,
           "type": "timeseries",
           "title": "Receipt queue time (avg)",
-          "description": "Action creation to transport.",
+          "description": "Action creation to transport. TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer.",
           "gridPos": {
             "x": 16,
             "y": 190,
@@ -7153,7 +7255,7 @@
               "limit": 50
             }
           ],
-          "interval": "5m",
+          "interval": "1m",
           "fieldConfig": {
             "defaults": {
               "unit": "ms",
@@ -7187,7 +7289,65 @@
               "mode": "multi",
               "sort": "desc"
             }
-          }
+          },
+          "transformations": [
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^0\\.5(?:0*)$/",
+                "renamePattern": "p50"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^0\\.95$/",
+                "renamePattern": "p95"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+                "renamePattern": "p50 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+                "renamePattern": "p95 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "p50 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{p=0\\.95, [^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "p95 $1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
+                "renamePattern": "$1"
+              }
+            },
+            {
+              "id": "renameByRegex",
+              "options": {
+                "regex": "/^avg_over_time$/",
+                "renamePattern": "queue time"
+              }
+            }
+          ]
         }
       ]
     },

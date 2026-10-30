@@ -9,7 +9,7 @@ validate against a running stack that receives telemetry from a real Paperclip:
 
 ```bash
 python3 tools/gen_dashboard.py > dashboards/paperclip.json
-python3 tools/validate_dashboard.py --range 24h   # also try 15m, 3h and 7d
+python3 tools/validate_dashboard.py --range 24h   # also try 15m, 3h and 7d (at 7d the TraceQL metrics panels are over Tempo's 24 h limit and are reported, not failed)
 ```
 
 Grafana reloads the file within about 30 seconds. Edits made in the Grafana UI are overwritten, so do not rely on them.

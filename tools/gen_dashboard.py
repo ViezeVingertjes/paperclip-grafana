@@ -118,7 +118,7 @@ def ts(title, items, unit, x, y, w=12, h=8, ds=PROM, desc="", stack=False, bars=
     """Time series. ds=TEMPO makes every item a range TraceQL metrics query (optionally at a fixed `step`)."""
     tg = tq_targets(items, "range", step) if ds is TEMPO else prom_targets(items)
     p = base("timeseries", title, x, y, w, h, ds, tg, desc)
-    p["interval"] = "5m" if ds is TEMPO else "1m"   # minimum step: sparse buckets make quantiles and bars jagged
+    p["interval"] = "1m"   # minimum step: 15 s buckets hold 0-1 samples and make quantiles and bars jagged; 5 m left a 15 m view with 3 points
     custom = {"drawStyle": "bars" if bars else "line", "lineWidth": 2, "fillOpacity": 40 if (stack or bars) else 10,
               "showPoints": "auto", "pointSize": 5, "spanNulls": 1800000, "barAlignment": 0,
               "stacking": {"mode": "normal" if stack else "none", "group": "A"}}
@@ -179,6 +179,13 @@ def tempo_table(title, query, x, y, w, h, table_type, desc="", rename=None, orde
         "renameByName": rename or {}}})
     p["transformations"] = tr
     return p
+
+
+def all_panels(items):
+    """Every panel, including the ones inside collapsed rows (they need the same post-processing)."""
+    for p in items:
+        yield p
+        yield from all_panels(p.get("panels", []))
 
 
 def row(title, y, children=None):
@@ -257,8 +264,18 @@ def fail_ratio(span):
     return (f"(({n(span, RNG, True)} + 1) / ({n(span, RNG)} + 2)) / (({n(span, BASE, True)} + 1) / ({n(span, BASE)} + 2))")
 
 
+PRIOR_SPANS = 10   # how many spans of "usual" a window is worth before its own durations count
+
+
 def mean_ratio(span):
-    return f"{mean_s(span, RNG)} / {mean_s(span, BASE)}"
+    """Mean duration now vs usual, pulled toward the usual mean by a prior worth PRIOR_SPANS spans.
+
+    A window with a handful of spans (a quiet 15 minutes) would otherwise swing the tile on noise alone. "No data" is kept
+    for a window with no spans at all."""
+    base = mean_s(span, BASE)
+    total = f"sum(increase(traces_spanmetrics_latency_sum{sel(span)}[{RNG}]))"
+    count = f"sum(increase(traces_spanmetrics_latency_count{sel(span)}[{RNG}]))"
+    return f"(({total} + {PRIOR_SPANS} * {base}) / ({count} + {PRIOR_SPANS})) / {base} and ({count} > 0)"
 
 
 # ---- what every run produces, whatever the adapter ------------------------------------------------
@@ -275,9 +292,17 @@ def failed(rng):
     return n(RUNS_RE, rng, True, regex=True)
 
 
+PRIOR_RUNS = 10   # how many runs of "usual" a window is worth before its own failures count
+
+
 def fail_ratio_runs():
-    """Failed share of runs now vs usual, lightly smoothed (+1/+2) so a single early failure does not explode the ratio."""
-    return (f"(({failed(RNG)} + 1) / ({n(ATTEMPT, RNG)} + 2)) / (({failed(BASE)} + 1) / ({n(ATTEMPT, BASE)} + 2))")
+    """Failed share of runs now vs usual, pulled toward the usual rate by a prior worth PRIOR_RUNS runs.
+
+    A fixed +1/+2 smoothing turned a quiet 15-minute window with one run into a 3x alarm against a 7-day baseline of a few
+    percent. With the baseline as the prior, a window of a few runs reads about 1.0x and only a real change moves it."""
+    base = f"(({failed(BASE)} + 1) / ({n(ATTEMPT, BASE)} + 2))"
+    now = f"(({failed(RNG)} + {PRIOR_RUNS} * {base}) / ({n(ATTEMPT, RNG)} + {PRIOR_RUNS}))"
+    return f"{now} / {base}"
 
 
 def srv_sel(err=False):
@@ -300,7 +325,7 @@ panels += [
          desc="Runs that ended in an error status in the range: task.execution_attempt (every adapter) plus task.provider_session (native runner). "
               "A healthy setup has none, so any failure is flagged."),
     stat("Run failure rate vs usual", fail_ratio_runs(), X, 6, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Share of runs that failed")),
+         desc=ratio_note("Share of runs that failed") + f" Short windows are pulled toward your usual rate (a prior worth {PRIOR_RUNS} runs), so a quiet range cannot raise a false alarm."),
     stat("API server errors", srv_n(RNG, True), "short", 12, y, 6, 4, bg=True, steps=ANY,
          desc="HTTP server spans with an error status (5xx) in the range. A healthy API has none."),
     stat("Controller errors", n(r"controller\\..*", RNG, True, regex=True), "short", 18, y, 6, 4, bg=True, steps=ANY,
@@ -310,7 +335,7 @@ panels += [
 y += 4
 panels += [
     stat("Run duration vs usual", mean_ratio(ATTEMPT), X, 0, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Mean run (executor invocation) duration") + " Means are used because span-metric percentiles stop at 16 s; percentiles are in the Runs row."),
+         desc=ratio_note("Mean run (executor invocation) duration") + " Means are used because span-metric percentiles stop at 16 s; percentiles are in the Runs row. Short windows are pulled toward your usual mean, so a quiet range cannot swing the tile."),
     stat("Run configuration vs usual", mean_ratio("heartbeat.prepare.execution_configuration"), X, 6, y, 6, 4, bg=True, steps=UP, nv="no data",
          desc=ratio_note("Mean time to prepare a run's configuration (skills, secrets, connectors, identity)")),
     stat("Workspace preparation vs usual", mean_ratio("heartbeat.prepare.workspace"), X, 12, y, 6, 4, bg=True, steps=UP, nv="no data",
@@ -653,8 +678,11 @@ EMPTY_IS_GOOD = {   # a chart that is empty because nothing went wrong should sa
 }
 STAT_STEPS = {}
 
-for pnl in panels:
+TRACEQL_LIMIT = " TraceQL metrics: Tempo answers at most 24 h per query, so this panel shows an error when the dashboard range is longer."
+for pnl in all_panels(panels):
     title = pnl.get("title", "")
+    if any("metricsQueryType" in t for t in pnl.get("targets", [])):
+        pnl["description"] = (pnl.get("description", "") + TRACEQL_LIMIT).strip()
     if pnl["type"] in ("timeseries", "bargauge"):
         tq_panel = pnl["datasource"] is TEMPO
         quant_panel = any("quantile_over_time" in t.get("query", "") for t in pnl["targets"])
@@ -678,7 +706,7 @@ for pnl in panels[native_start:native_end]:   # panels that only fill for paperc
 dashboard = {
     "uid": "paperclip",
     "title": "Paperclip",
-    "description": "Agent runs, startup and first-token latency, turns and tools, workspace sync, controller, budget, HTTP and database performance for Paperclip, derived from its OpenTelemetry traces.",
+    "description": "Agent runs, startup and first-token latency, turns and tools, workspace, controller, budget and API performance for Paperclip, derived from its OpenTelemetry traces. Percentiles and attribute breakdowns come from TraceQL metrics and cover at most 24 h; counts, rates and health tiles cover any range.",
     "tags": ["paperclip", "otel"],
     "timezone": "browser",
     "schemaVersion": 39,
