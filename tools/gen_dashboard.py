@@ -24,7 +24,7 @@ Design notes
   * Reading order: Health -> Overview -> Runs -> Startup -> Turns and tools -> Providers -> Workspace -> Controller ->
     Budget -> API and database -> Chat -> Traces -> Telemetry pipeline.
 """
-import json, re
+import json
 
 # Datasources are dashboard variables, so the dashboard imports into any Grafana: each variable picks the first
 # datasource of its type (change it under Dashboard settings > Variables if you have several).
@@ -458,6 +458,7 @@ y += 8
 
 # ============================================================================== API and database
 panels.append(row("API and database", y)); y += 1
+ISSUE_READ = r"issue\\.read\\..*"
 HTTP = f'{{ {TSVC} && kind = server && span.http.route != nil }}'
 DB = f'{{ {TSVC} && kind = client && span.db.system = "postgresql" }}'
 panels += [
@@ -473,7 +474,7 @@ panels += [
        desc="PostgreSQL client spans from the pg auto-instrumentation, by SQL operation."),
     ts("Database latency p95", [f'{DB} | quantile_over_time(duration, 0.95) by (span.db.operation)'], "s", 8, y, 8, 8, ds=TEMPO,
        desc="Whole awaited client operation: pool acquisition, driver and network time, database work and lock waits."),
-    bargauge("Task detail read phases (avg)", f'{tq(r"issue\\.read\\..*", regex=True)} | avg_over_time(duration) by (name) | topk(10)', "s", 16, y, 8, 8, ds=TEMPO,
+    bargauge("Task detail read phases (avg)", f'{tq(ISSUE_READ, regex=True)} | avg_over_time(duration) by (name) | topk(10)', "s", 16, y, 8, 8, ds=TEMPO,
              desc="GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap."),
 ]
 y += 8
