@@ -19,13 +19,12 @@ A local Grafana dashboard for [Paperclip](https://github.com/paperclipai/papercl
 ## Highlights
 
 - **Health at a glance.** Green, orange or red tiles that compare *now* with *your own* last 7 days (run failures, tool failures, run duration, time to first token, startup, preparation). No magic thresholds, so they fit any setup.
-- **Runs.** Throughput by outcome, duration percentiles, average concurrent runs, recent, slowest and failed runs with a link to each trace.
-- **Startup and first token.** How long until the first deliverable text, how long the Runner takes to start, fresh versus resumed sessions, and a breakdown of where preparation and startup time goes.
-- **Agent turns and tools.** Turn duration, time to first provider activity, tool executions, failures and latency per tool, and slow calls.
-- **Providers and sessions.** Turns by provider (Claude, Codex, OpenCode ...), sessions by harness and lifecycle mode.
+- **Runs, for any agent.** Throughput and failures, duration percentiles, average concurrent runs, recent, slowest and failed runs with a link to each trace. Built on the executor span every adapter emits.
+- **Where run time goes.** Preparation phases, run configuration, skills, execution and completion, each broken down.
+- **Native runner** (`paperclip_runner` agents). Time to first token, Runner startup, fresh versus resumed sessions, turn duration, tool executions, failures and latency per tool, turns by provider, sessions by harness.
 - **Workspace.** Where workspace sync spends its time, the slowest preparation steps, repository checkout cache outcomes and data moved.
 - **Controller, budget and chat.** Startup and recovery phases and their errors, budget admission and accounting (including lock waits), Slack receipt reactions.
-- **API and database.** HTTP requests, latency and errors per route, PostgreSQL queries and slow statements, task-detail read phases.
+- **API.** HTTP requests, latency and status codes by method, slowest requests, task-detail read phases.
 - **Trace waterfalls.** Click a run and see every phase on a timeline.
 - **Several instances.** Give each Paperclip an `OTEL_SERVICE_NAME` and filter or compare them with the *Instance* variable.
 - **Easy to read.** Short names instead of raw span names, rates instead of raw counts so charts read the same at 15 minutes or 7 days, and a clear "none in this range" when there is nothing to show.
@@ -115,9 +114,9 @@ Green, orange and red always mean *fine*, *watch this* and *act*; everything els
 
 | Tile | Rule |
 |---|---|
-| Run failure rate, tool failure rate | failure share now / over 7 days (lightly smoothed) |
-| Run duration, time to first token, runner startup, preparation | mean now / mean over 7 days. 1.00x = as usual |
-| Failed runs, controller errors | counts; a healthy setup has none, so any occurrence is orange |
+| Run failure rate | failure share now / over 7 days (lightly smoothed) |
+| Run duration, run configuration, workspace preparation, API latency | mean now / mean over 7 days. 1.00x = as usual |
+| Failed runs, API server errors, controller errors | counts; a healthy setup has none, so any occurrence is orange |
 
 Ratios turn orange at 1.5x and red at 2.5x of usual. With less than 7 days of history the baseline is just the data you
 have, so tiles read about 1.00x until something changes. Adjust the steps in `tools/gen_dashboard.py` (`UP`, `ANY`, `BASE`).
@@ -190,13 +189,13 @@ Data lives in `~/.local/share/otel-lgtm` (`docker compose down -v` for the compo
 | Percentile panels are empty but counts are not | Percentiles come from TraceQL metrics, which only cover recent data; run something and look at a short range. |
 | Stack does not start at boot | Lingering is off: run `sudo loginctl enable-linger $USER`. |
 | "Port already in use" | Something else uses 3000, 4317 or 4318 on localhost. Free it and re-run `./install.sh`. |
-| A phase panel is empty | Detail spans are capped at 16 per name per attempt and some phases only exist for some providers. See [`telemetry-reference.md`](docs/telemetry-reference.md). |
+| A *Native runner* panel is empty | Those spans only exist for agents with the `paperclip_runner` adapter, on a task in `standard`, `planning` or `ask` mode. Legacy adapters such as `claude_local` fill every other row. Detail spans are also capped at 16 per name per attempt. See [`telemetry-reference.md`](docs/telemetry-reference.md). |
 
 ## Privacy and security
 
 - Everything listens on `127.0.0.1`. Nothing is sent anywhere, except the image download from Docker Hub. Paperclip reaches the stack over a private Podman network.
-- Paperclip's spans carry a closed list of attributes: hashed run IDs, counts, durations and enumerated names. Prompts, responses, tool arguments, paths and exception messages are not exported.
-- The PostgreSQL auto-instrumentation adds `db.statement` (SQL text with placeholders, not values) to database spans, and the *Slow database queries* panel shows it. Remove that column in `tools/gen_dashboard.py` if you do not want SQL on screen.
+- Paperclip's spans carry a closed list of attributes: hashed run IDs, counts, durations and enumerated names. Prompts, responses, tool arguments, workspace paths and exception messages are not exported.
+- The HTTP auto-instrumentation records the request path (`url.path`), which can contain task or agent IDs; the *Slowest API requests* panel shows it. Remove that column in `tools/gen_dashboard.py` if you do not want paths on screen.
 - Grafana ships with `admin` / `admin`: change it on first login. No credentials are stored in this repository.
 
 ## Layout

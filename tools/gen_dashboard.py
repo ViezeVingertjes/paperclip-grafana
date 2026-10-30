@@ -21,8 +21,9 @@ Why two sources of derived metrics
 Design notes
   * Span names and attributes come from doc/observability.md and the source of Paperclip (server/src/services/...).
     The list of what the dashboard reads is in docs/telemetry-reference.md.
-  * Reading order: Health -> Overview -> Runs -> Startup -> Turns and tools -> Providers -> Workspace -> Controller ->
-    Budget -> API and database -> Chat -> Traces -> Telemetry pipeline.
+  * Reading order: Health -> Overview -> Runs -> Run preparation -> Execution and completion -> Native runner (startup,
+    turns and tools, providers) -> Workspace -> Controller -> Budget -> API -> Chat -> Traces -> Telemetry pipeline.
+  * Runs are task.execution_attempt, which every adapter emits; the native runner rows need paperclip_runner agents.
 """
 import json
 
@@ -250,29 +251,62 @@ def mean_ratio(span):
     return f"{mean_s(span, RNG)} / {mean_s(span, BASE)}"
 
 
+# ---- what every run produces, whatever the adapter ------------------------------------------------
+# task.execution_attempt is the server's root span for ONE invocation of the executor, for every adapter (claude_local,
+# codex_local, paperclip_runner ...). The native runner's own lifecycle (task.provider_session and its children) only
+# exists for paperclip_runner agents, and a native failure marks that span, not the attempt, so "failed" counts both.
+ATTEMPT = "task.execution_attempt"
+RUNS_RE = r"task\\.(execution_attempt|provider_session)"
+SRV = 'span_kind="SPAN_KIND_SERVER"'
+NATIVE_EMPTY = "no native runner runs in this range"
+
+
+def failed(rng):
+    return n(RUNS_RE, rng, True, regex=True)
+
+
+def fail_ratio_runs():
+    """Failed share of runs now vs usual, lightly smoothed (+1/+2) so a single early failure does not explode the ratio."""
+    return (f"(({failed(RNG)} + 1) / ({n(ATTEMPT, RNG)} + 2)) / (({failed(BASE)} + 1) / ({n(ATTEMPT, BASE)} + 2))")
+
+
+def srv_sel(err=False):
+    return f'{{{SVC},{SRV}{"," + ERR if err else ""}}}'
+
+
+def srv_n(rng, err=False):
+    return f"(sum(increase(traces_spanmetrics_calls_total{srv_sel(err)}[{rng}])) or vector(0))"
+
+
+def srv_mean(rng):
+    return (f"(sum(increase(traces_spanmetrics_latency_sum{srv_sel()}[{rng}])) / "
+            f"sum(increase(traces_spanmetrics_latency_count{srv_sel()}[{rng}])))")
+
+
 # ============================================================================== Health
 panels.append(row("Health", y)); y += 1
 panels += [
-    stat("Failed runs", n(RUN, RNG, True), "short", 0, y, 6, 4, bg=True, steps=ANY,
-         desc="Agent runs (task.provider_session) that ended in an error status in the range. Healthy setups have none, so any failure is flagged."),
-    stat("Run failure rate vs usual", fail_ratio(RUN), X, 6, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Share of agent runs that failed")),
-    stat("Tool failure rate vs usual", fail_ratio("tool.execute"), X, 12, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Share of native tool executions that failed")),
+    stat("Failed runs", failed(RNG), "short", 0, y, 6, 4, bg=True, steps=ANY,
+         desc="Runs that ended in an error status in the range: task.execution_attempt (every adapter) plus task.provider_session (native runner). "
+              "A healthy setup has none, so any failure is flagged."),
+    stat("Run failure rate vs usual", fail_ratio_runs(), X, 6, y, 6, 4, bg=True, steps=UP, nv="no data",
+         desc=ratio_note("Share of runs that failed")),
+    stat("API server errors", srv_n(RNG, True), "short", 12, y, 6, 4, bg=True, steps=ANY,
+         desc="HTTP server spans with an error status (5xx) in the range. A healthy API has none."),
     stat("Controller errors", n(r"controller\\..*", RNG, True, regex=True), "short", 18, y, 6, 4, bg=True, steps=ANY,
          desc="Error spans from controller startup and recovery phases (controller.startup.*, controller.native_reconciliation). "
               "A phase that fails does not stop the server, but it means recovery work did not complete."),
 ]
 y += 4
 panels += [
-    stat("Run duration vs usual", mean_ratio(RUN), X, 0, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Mean run duration") + " Means are used because span-metric percentiles stop at 16 s; percentiles are in the Runs row."),
-    stat("Time to first token vs usual", mean_ratio("task.time_to_first_token"), X, 6, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Mean time until the first deliverable text") + " Includes queueing, preparation, startup and provider latency."),
-    stat("Runner startup vs usual", mean_ratio("runner.session.startup"), X, 12, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Mean runner session startup time")),
-    stat("Preparation vs usual", mean_ratio("task.prepare"), X, 18, y, 6, 4, bg=True, steps=UP, nv="no data",
-         desc=ratio_note("Mean task preparation time (environment, skills, workspace)")),
+    stat("Run duration vs usual", mean_ratio(ATTEMPT), X, 0, y, 6, 4, bg=True, steps=UP, nv="no data",
+         desc=ratio_note("Mean run (executor invocation) duration") + " Means are used because span-metric percentiles stop at 16 s; percentiles are in the Runs row."),
+    stat("Run configuration vs usual", mean_ratio("heartbeat.prepare.execution_configuration"), X, 6, y, 6, 4, bg=True, steps=UP, nv="no data",
+         desc=ratio_note("Mean time to prepare a run's configuration (skills, secrets, connectors, identity)")),
+    stat("Workspace preparation vs usual", mean_ratio("heartbeat.prepare.workspace"), X, 12, y, 6, 4, bg=True, steps=UP, nv="no data",
+         desc=ratio_note("Mean workspace preparation time (source, provisioning, repository admission, environment)")),
+    stat("API latency vs usual", f"{srv_mean(RNG)} / {srv_mean(BASE)}", X, 18, y, 6, 4, bg=True, steps=UP, nv="no data",
+         desc=ratio_note("Mean HTTP request duration")),
 ]
 y += 4
 
@@ -280,69 +314,112 @@ y += 4
 panels.append(row("Overview", y)); y += 1
 GOOD_HIGH = lambda warn, ok: [{"color": "red", "value": None}, {"color": "orange", "value": warn}, {"color": "green", "value": ok}]
 panels += [
-    stat("Runs", n(RUN, RNG), "short", 0, y, desc="Native agent runs (task.provider_session spans) in the range."),
-    stat("Run success rate", f"1 - {n(RUN, RNG, True)} / {n(RUN, RNG)}", "percentunit", 4, y, nv="no data",
-         desc="Runs without an error status. A run that fails is marked failed on its root span."),
-    stat("Agent time", f'sum(increase(traces_spanmetrics_latency_sum{sel(RUN)}[{RNG}])) or vector(0)', "s", 8, y,
+    stat("Runs", n(ATTEMPT, RNG), "short", 0, y, desc="Executor invocations (task.execution_attempt spans) in the range, for every adapter."),
+    stat("Run success rate", f"1 - {failed(RNG)} / {n(ATTEMPT, RNG)}", "percentunit", 4, y, nv="no data", steps=GOOD_HIGH(0.85, 0.95),
+         desc="Runs without an error status. A native-runner failure marks its task.provider_session span."),
+    stat("Agent time", f'sum(increase(traces_spanmetrics_latency_sum{sel(ATTEMPT)}[{RNG}])) or vector(0)', "s", 8, y,
          desc="Total wall-clock time of all runs in the range (runs can overlap, so this can exceed the range)."),
-    stat("Avg run duration", mean_s(RUN, RNG), "s", 12, y, nv="no data", desc="Mean run duration. Percentiles are in the Runs row."),
-    stat("Agent turns", n("agent.turn", RNG), "short", 16, y, desc="Provider turns (agent.turn spans): one per prompt submitted to an agent."),
-    stat("Tool calls", n("tool.execute", RNG), "short", 20, y, desc="Native control-plane tool executions (tool.execute spans)."),
+    stat("Avg run duration", mean_s(ATTEMPT, RNG), "s", 12, y, nv="no data", desc="Mean run duration. Percentiles are in the Runs row."),
+    stat("API requests", srv_n(RNG), "short", 16, y, desc="HTTP server spans in the range (the board UI, agents and the API)."),
+    stat("Budget checks", n("budget.admission.evaluate", RNG), "short", 20, y, desc="Budget admission evaluations in the range: one per run dispatch and per budgeted action."),
 ]
 y += 4
 panels += [
-    stat("Run duration p95", f'{tq(RUN)} | quantile_over_time(duration, 0.95)', "s", 0, y, ds=TEMPO, nv="no data",
+    stat("Run duration p95", f'{tq(ATTEMPT)} | quantile_over_time(duration, 0.95)', "s", 0, y, ds=TEMPO, nv="no data",
          desc="95th percentile of run duration (TraceQL metrics; no 16 s cap)."),
-    stat("Time to first token p95", f'{tq("task.time_to_first_token")} | quantile_over_time(duration, 0.95)', "s", 4, y, ds=TEMPO, nv="no data",
-         desc="95th percentile of the wait until text is deliverable to the task transcript (not an exact model token boundary)."),
-    stat("Runner startup p95", f'{tq("runner.session.startup")} | quantile_over_time(duration, 0.95)', "s", 8, y, ds=TEMPO, nv="no data",
-         desc="95th percentile of Runner session startup, up to the first durable turn.submitted event."),
-    stat("Turn duration p95", f'{tq("agent.turn")} | quantile_over_time(duration, 0.95)', "s", 12, y, ds=TEMPO, nv="no data",
-         desc="95th percentile of agent.turn: from turn.submitted to the provider's terminal event."),
-    stat("Tool success rate", f"1 - {n('tool.execute', RNG, True)} / {n('tool.execute', RNG)}", "percentunit", 16, y, nv="no data",
-         steps=GOOD_HIGH(0.85, 0.95), desc="Native tool executions without an error status."),
-    stat("Warm session reuse", f"{n('runner.session.resume', RNG)} / ({n('runner.session.resume', RNG)} + {n('runner.session.bootstrap', RNG)})",
-         "percentunit", 20, y, nv="no data",
-         desc="Share of Runner sessions that resumed a recovered provider session instead of bootstrapping a fresh one."),
+    stat("Configuration p95", f'{tq("heartbeat.prepare.execution_configuration")} | quantile_over_time(duration, 0.95)', "s", 4, y, ds=TEMPO, nv="no data",
+         desc="95th percentile of run configuration time (skills, secrets, connectors, identity)."),
+    stat("API latency p95", f'{{ {TSVC} && kind = server }} | quantile_over_time(duration, 0.95)', "s", 8, y, ds=TEMPO, nv="no data",
+         desc="95th percentile of HTTP server span duration."),
+    stat("Native runner runs", n(RUN, RNG), "short", 12, y,
+         desc="Runs through the native Paperclip Runner (task.provider_session). Zero when your agents use legacy adapters such as claude_local."),
+    stat("Native run success rate", f"1 - {n(RUN, RNG, True)} / {n(RUN, RNG)}", "percentunit", 16, y, nv="no native runs", steps=GOOD_HIGH(0.85, 0.95),
+         desc="Native runner runs without an error status."),
+    stat("Tool success rate (native)", f"1 - {n('tool.execute', RNG, True)} / {n('tool.execute', RNG)}", "percentunit", 20, y, nv="no native tool calls",
+         steps=GOOD_HIGH(0.85, 0.95), desc="Native control-plane tool executions without an error status."),
 ]
 y += 4
 
 # ============================================================================== Runs
 panels.append(row("Runs", y)); y += 1
 panels += [
-    ts("Runs per hour by outcome", [(per(RUN, 3600, by="status_code"), "{{status_code}}")], "short", 0, y, 8, 8, stack=True, bars=True,
-       desc="Runs by the status of their root span: OK, or failed (error status).",
-       overrides=[{"matcher": {"id": "byName", "options": "Failed"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
-                  {"matcher": {"id": "byName", "options": "OK"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]}]),
-    ts("Run duration", [quant(RUN)], "s", 8, y, 8, 8, ds=TEMPO,
-       desc="Wall-clock time of a run, from the accepted trigger through settlement. p95 is dashed."),
-    ts("Concurrent runs (average)", [(f"sum(rate(traces_spanmetrics_latency_sum{sel(RUN)}[{RI}]))", "runs")], "short", 16, y, 8, 8,
+    ts("Runs and failures per hour",
+       [(per(ATTEMPT, 3600), "runs"), (f"sum(rate(traces_spanmetrics_calls_total{sel(RUNS_RE, True, True)}[{RI}])) * 3600", "failed")], "short", 0, y, 8, 8, bars=True,
+       desc="Executor invocations per hour, and how many of them failed (error status on task.execution_attempt or task.provider_session).",
+       overrides=[{"matcher": {"id": "byName", "options": "failed"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]},
+                  {"matcher": {"id": "byName", "options": "runs"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]}]),
+    ts("Run duration", [quant(ATTEMPT)], "s", 8, y, 8, 8, ds=TEMPO,
+       desc="Duration of one executor invocation (admission reads, preparation, provider dispatch and inline settlement). Deferred work such as workspace finalization is separate. p95 is dashed."),
+    ts("Concurrent runs (average)", [(f"sum(rate(traces_spanmetrics_latency_sum{sel(ATTEMPT)}[{RI}]))", "runs")], "short", 16, y, 8, 8,
        desc="Average number of runs in flight (seconds of run time per second). Sudden growth means runs are queueing or getting longer."),
 ]
 y += 8
 panels.append(tempo_table(
-    "Recent runs (click a trace ID to open the waterfall)", tq(RUN), 0, y, 24, 8, "traces",
+    "Recent runs (click a trace ID to open the waterfall)", tq(ATTEMPT), 0, y, 24, 8, "traces",
     hide=["traceService", "nested", "traceName", "Name"], order=["traceID", "startTime", "traceName", "traceDuration"],
     rename={"traceID": "Trace ID", "startTime": "Start", "traceName": "Root span", "traceDuration": "Duration"}))
 y += 8
 COMMON_HIDE = ["traceService", "traceName", "service.name"]
 DURATION_NS = [{"matcher": {"id": "byName", "options": "Duration"}, "properties": [{"id": "unit", "value": "ns"}]}]
 panels += [
-    tempo_table("Slowest runs", f'{tq(RUN)} | select(span.paperclip.task.run.run_id, span.paperclip.task.run.runtime)', 0, y, 12, 8, "spans",
-                hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "paperclip.task.run.run_id", "paperclip.task.run.runtime", "time", "spanID"],
+    tempo_table("Slowest runs", f'{tq(ATTEMPT)} | select(span.paperclip.task.run.run_id)', 0, y, 12, 8, "spans",
+                hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "paperclip.task.run.run_id", "time", "spanID"],
                 desc="Run ID is the first 12 hex characters of the SHA-256 of the run UUID, never the UUID itself.",
-                rename={"duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "paperclip.task.run.runtime": "Runtime", "time": "Start", "spanID": "Span ID"},
+                rename={"duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "time": "Start", "spanID": "Span ID"},
                 unit_overrides=DURATION_NS),
-    tempo_table("Failed runs", tq(RUN, "status = error") + " | select(span.paperclip.task.run.run_id, span.paperclip.task.run.outcome)", 12, y, 12, 8, "spans",
-                hide=COMMON_HIDE + ["name"], sort="time", order=["time", "duration", "paperclip.task.run.run_id", "paperclip.task.run.outcome", "spanID"],
+    tempo_table("Failed runs", tq(RUNS_RE, "status = error", regex=True) + " | select(span.paperclip.task.run.run_id, span.paperclip.task.run.outcome)", 12, y, 12, 8, "spans",
+                hide=COMMON_HIDE, sort="time", order=["time", "name", "duration", "paperclip.task.run.run_id", "paperclip.task.run.outcome", "spanID"],
                 desc="Runs whose root span has an error status. Empty is good. Open the span ID to see which phase failed.",
-                rename={"duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "paperclip.task.run.outcome": "Outcome", "time": "Start", "spanID": "Span ID"},
+                rename={"name": "Span", "duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "paperclip.task.run.outcome": "Outcome", "time": "Start", "spanID": "Span ID"},
                 unit_overrides=DURATION_NS),
 ]
 y += 8
 
-# ============================================================================== Startup
-panels.append(row("Startup and first token", y)); y += 1
+# ============================================================================== Run preparation
+panels.append(row("Run preparation", y)); y += 1
+PREP_TOP = "|".join(["agent_read", "chat_completion", "conversation", "runtime_state", "issue_context", "run_identity", "trust_preset", "task_context",
+                     "environment_selection", "execution_configuration", "session", "workspace", "run_output", "runtime_services", "instructions",
+                     "github_environment", "runtime_selection"])
+PREP = "heartbeat\\\\.prepare\\\\.(" + PREP_TOP + ")"
+PREP_CONFIG = "heartbeat\\\\.prepare\\\\.configuration_.*"
+PREP_MAIN = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace|instructions|task_context|github_environment)"
+PREP_DOMINANT = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace)"
+SKILLS = "skills\\\\..*"
+panels += [
+    bargauge("Where run preparation time goes (avg)", f'{tq(PREP, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 0, y, 8, 8, ds=TEMPO,
+             desc="Mean duration of each top-level preparation phase (heartbeat.prepare.*). Phases run before the provider starts; workspace and configuration contain sub-steps, shown separately."),
+    bargauge("Where configuration time goes (avg)", f'{tq(PREP_CONFIG, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 8, y, 8, 8, ds=TEMPO,
+             desc="Sub-steps of heartbeat.prepare.execution_configuration: skills, secrets, connectors, GitHub and agent identity. They are inside the configuration duration; do not add them to it."),
+    bargauge("Where skills preparation goes (avg)", f'{tq(SKILLS, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 16, y, 8, 8, ds=TEMPO,
+             desc="Skill inventory, version read, materialization and verification (skills.*). These sit inside configuration_skills."),
+]
+y += 8
+panels += [
+    ts("Preparation over time (avg by phase)", [f'{tq(PREP_MAIN, regex=True)} | avg_over_time(duration) by (name)'],
+       "s", 0, y, 12, 8, ds=TEMPO, stack=True, desc="The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower."),
+    ts("Preparation phase p95", [quant(PREP_DOMINANT, "0.95", by="name", regex=True)], "s", 12, y, 12, 8, ds=TEMPO,
+       desc="95th percentile of the two phases that usually dominate preparation."),
+]
+y += 8
+
+# ============================================================================== Execution and completion
+panels.append(row("Execution and completion", y)); y += 1
+EXEC = "execution\\\\..*"
+COMP = "completion\\\\..*"
+EXEC_MAIN = "(execution|completion)\\\\.(runtime|usage|run|output|cost|terminal_write)"
+panels += [
+    bargauge("Execution phases (avg)", f'{tq(EXEC, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 0, y, 8, 8, ds=TEMPO,
+             desc="Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents."),
+    bargauge("Completion phases (avg)", f'{tq(COMP, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 8, y, 8, 8, ds=TEMPO,
+             desc="Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*)."),
+    ts("Execution and completion over time (avg)", [f'{tq(EXEC_MAIN, regex=True)} | avg_over_time(duration) by (name)'],
+       "s", 16, y, 8, 8, ds=TEMPO, stack=True, desc="How long the main post-dispatch phases took per step."),
+]
+y += 8
+
+# ============================================================================== Startup (native)
+native_start = len(panels)
+panels.append(row("Native runner: startup and first token", y)); y += 1
 STARTUP = r"runner\\.(transport\\.connect|transport\\.activation|transport\\.ready|runtime\\.stage|session\\.bootstrap|session\\.resume|turn\\.submit)"
 PREPARE = r"environment\\.acquire|environment\\.workspace\\.realize|skills\\.prepare|heartbeat\\.prepare_before_environment|heartbeat\\.prepare_after_environment|native\\.coordinator\\.claim|heartbeat\\.queue"
 panels += [
@@ -358,13 +435,13 @@ y += 8
 panels += [
     bargauge("Where startup time goes (avg)", f'{tq(STARTUP, regex=True)} | avg_over_time(duration) by (name)', "s", 0, y, 12, 8, ds=TEMPO,
              desc="Mean duration per Runner startup phase. Nested phases overlap their parents (for example artifact preparation sits inside transport connect), so do not add the bars."),
-    bargauge("Where preparation time goes (avg)", f'{tq(PREPARE, regex=True)} | avg_over_time(duration) by (name)', "s", 12, y, 12, 8, ds=TEMPO,
-             desc="Mean duration per preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins."),
+    bargauge("Where native preparation time goes (avg)", f'{tq(PREPARE, regex=True)} | avg_over_time(duration) by (name)', "s", 12, y, 12, 8, ds=TEMPO,
+             desc="Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins."),
 ]
 y += 8
 
-# ============================================================================== Turns and tools
-panels.append(row("Agent turns and tools", y)); y += 1
+# ============================================================================== Turns and tools (native)
+panels.append(row("Native runner: agent turns and tools", y)); y += 1
 TURN_GAPS = r"runner\\.turn\\.submitted_to_started|provider\\.time_to_first_agent_event"
 panels += [
     ts("Turn duration", [quant("agent.turn")], "s", 0, y, 8, 8, ds=TEMPO,
@@ -397,8 +474,8 @@ panels += [
 ]
 y += 7
 
-# ============================================================================== Providers
-panels.append(row("Providers and sessions", y)); y += 1
+# ============================================================================== Providers (native)
+panels.append(row("Native runner: providers and sessions", y)); y += 1
 panels += [
     bargauge("Turns by provider", f'{tq("agent.turn")} | count_over_time() by ({NS}provider)', "short", 0, y, 8, 7, ds=TEMPO,
              desc="Agent turns by provider kind (for ACPX the underlying agent, such as claude or codex)."),
@@ -408,16 +485,17 @@ panels += [
              desc="How the session lifecycle policy treated the provider session (for example warm reuse versus a new session)."),
 ]
 y += 7
+native_end = len(panels)
 
 # ============================================================================== Workspace
 panels.append(row("Workspace and environment", y)); y += 1
 WS = r"workspace_sync\\.(stage_workspace|transfer|pack|snapshot_git|snapshot_baseline|seed_lookup|inbound_barrier|git_clone)"
-PREP_WS = r"heartbeat\\.prepare\\.workspace.*"
+PREP_WS = r"heartbeat\\.prepare\\.workspace_.*"
 panels += [
     ts("Workspace sync: where time goes (avg)", [f'{tq(WS, regex=True)} | avg_over_time(duration) by (name)'], "s", 0, y, 12, 8, ds=TEMPO, stack=True,
-       desc="Mean duration of the main workspace_sync phases. Parallel tasks overlap, and parents include their children, so do not add the layers for elapsed time."),
+       desc="Mean duration of the main workspace_sync phases (remote and sandbox targets). Parallel tasks overlap, and parents include their children, so do not add the layers for elapsed time."),
     bargauge("Slowest workspace preparation steps (avg)", f'{tq(PREP_WS, regex=True)} | avg_over_time(duration) by (name) | topk(10)', "s", 12, y, 12, 8, ds=TEMPO,
-             desc="Ten slowest heartbeat.prepare.workspace* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it."),
+             desc="Ten slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it."),
 ]
 y += 8
 panels += [
@@ -436,7 +514,7 @@ panels.append(row("Controller and recovery", y)); y += 1
 CTRL = r"controller\\..*"
 panels += [
     bargauge("Controller startup phases (slowest)", f'{tq(CTRL, regex=True)} | max_over_time(duration) by (name) | topk(10)', "s", 0, y, 8, 8, ds=TEMPO,
-             desc="Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs."),
+             desc="Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one."),
     ts("Controller span errors per hour", [(per(CTRL, 3600, err=True, regex=True, by="span_name"), "{{span_name}}")], "short", 8, y, 8, 8, bars=True, stack=True,
        desc="Error spans from controller.* phases per hour. Empty is good."),
     ts("Native reconciliation passes", [quant("controller.native_reconciliation", "0.5, 0.95")], "s", 16, y, 8, 8, ds=TEMPO,
@@ -456,35 +534,29 @@ panels += [
 ]
 y += 8
 
-# ============================================================================== API and database
-panels.append(row("API and database", y)); y += 1
+# ============================================================================== API
+panels.append(row("API", y)); y += 1
+HTTP = f'{{ {TSVC} && kind = server }}'
 ISSUE_READ = r"issue\\.read\\..*"
-HTTP = f'{{ {TSVC} && kind = server && span.http.route != nil }}'
-DB = f'{{ {TSVC} && kind = client && span.db.system = "postgresql" }}'
 panels += [
-    ts("HTTP requests per 5 min by route", [f'{HTTP} | count_over_time() by (span.http.route)'], "short", 0, y, 8, 8, ds=TEMPO, stack=True, bars=True, step="5m",
-       desc="Server spans from the HTTP auto-instrumentation, by route template. Attribute names follow the installed OpenTelemetry semantic conventions."),
-    ts("HTTP latency p95 by route", [f'{HTTP} | quantile_over_time(duration, 0.95) by (span.http.route)'], "s", 8, y, 8, 8, ds=TEMPO),
-    ts("HTTP server errors per 5 min", [f'{{ {TSVC} && kind = server && status = error }} | count_over_time() by (span.http.route)'], "short", 16, y, 8, 8, ds=TEMPO,
-       bars=True, stack=True, step="5m", desc="Server spans with an error status (5xx). Empty is good."),
+    ts("HTTP requests per 5 min by method", [f'{HTTP} | count_over_time() by (span.http.request.method)'], "short", 0, y, 8, 8, ds=TEMPO, stack=True, bars=True, step="5m",
+       desc="Server spans from the HTTP auto-instrumentation, by request method. Attribute names follow the stable OpenTelemetry semantic conventions."),
+    ts("HTTP latency p95 by method", [f'{HTTP} | quantile_over_time(duration, 0.95) by (span.http.request.method)'], "s", 8, y, 8, 8, ds=TEMPO),
+    ts("HTTP responses per 5 min by status", [f'{HTTP} | count_over_time() by (span.http.response.status_code)'], "short", 16, y, 8, 8, ds=TEMPO, stack=True, bars=True, step="5m",
+       desc="Responses by HTTP status code. Anything 5xx also shows as an error span."),
 ]
 y += 8
 panels += [
-    ts("Database queries per 5 min", [f'{DB} | count_over_time() by (span.db.operation)'], "short", 0, y, 8, 8, ds=TEMPO, stack=True, bars=True, step="5m",
-       desc="PostgreSQL client spans from the pg auto-instrumentation, by SQL operation."),
-    ts("Database latency p95", [f'{DB} | quantile_over_time(duration, 0.95) by (span.db.operation)'], "s", 8, y, 8, 8, ds=TEMPO,
-       desc="Whole awaited client operation: pool acquisition, driver and network time, database work and lock waits."),
+    tempo_table("Slowest API requests (over 250 ms, slowest first)",
+                f'{{ {TSVC} && kind = server && duration > 250ms }} | select(span.http.request.method, span.url.path, span.http.response.status_code)', 0, y, 16, 8, "spans",
+                hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "http.request.method", "url.path", "http.response.status_code", "time", "spanID"],
+                desc="The path is the request path as received, so it can contain task or agent IDs.",
+                rename={"duration": "Duration", "http.request.method": "Method", "url.path": "Path", "http.response.status_code": "Status", "time": "Start", "spanID": "Span ID"},
+                unit_overrides=DURATION_NS),
     bargauge("Task detail read phases (avg)", f'{tq(ISSUE_READ, regex=True)} | avg_over_time(duration) by (name) | topk(10)', "s", 16, y, 8, 8, ds=TEMPO,
              desc="GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap."),
 ]
 y += 8
-panels.append(tempo_table(
-    "Slow database queries (over 500 ms, slowest first)", f'{DB[:-2]} && duration > 500ms }} | select(span.db.operation, span.db.statement)', 0, y, 24, 7, "spans",
-    hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "db.operation", "db.statement", "time", "spanID"],
-    desc="The statement text comes from the PostgreSQL auto-instrumentation (parameter placeholders, not values). Clear it from this panel if you do not want SQL text on screen.",
-    rename={"duration": "Duration", "db.operation": "Operation", "db.statement": "Statement", "time": "Start", "spanID": "Span ID"},
-    unit_overrides=DURATION_NS))
-y += 7
 
 # ============================================================================== Chat
 panels.append(row("Chat channels", y)); y += 1
@@ -503,7 +575,7 @@ y += 7
 panels.append(row("Traces (span metrics)", y)); y += 1
 panels += [
     ts("Busiest spans per minute", [(f"topk(10, sum by (span_name) (rate(traces_spanmetrics_calls_total{{{SVC}}}[{RI}])) * 60)", "{{span_name}}")], "short", 0, y, 12, 8,
-       desc="The ten most frequent span names. Instrumentation spans (HTTP, database, Express layers) usually dominate."),
+       desc="The ten most frequent span names. Instrumentation spans (HTTP, authentication) usually dominate."),
     ts("Span errors per hour", [(f'sum by (span_name) (rate(traces_spanmetrics_calls_total{{{SVC},{ERR}}}[{RI}])) * 3600', "{{span_name}}")], "short", 12, y, 12, 8, bars=True, stack=True,
        desc="Error spans by name per hour; empty is good."),
 ]
@@ -534,25 +606,17 @@ QUANTILES = rn(
     (r'/^\{p=0\.5(?:0*), [^=]+="([^"]*)"\}$/', "p50 $1"), (r'/^\{p=0\.95, [^=]+="([^"]*)"\}$/', "p95 $1"),
     (r'/^\{[^=]+="([^"]*)"\}$/', "$1"),
 )
-SPAN = rn(("/^(?:task|runner|agent|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue)\\.(.*)/", "$1"),
+SPAN = rn(("/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/", "$1"),
           ("/_/g", " "), ("/\\./g", " > "))
-RENAMES = {
-    "Runs per hour by outcome": rn(("/^STATUS_CODE_ERROR$/", "Failed"), ("/^STATUS_CODE_UNSET$/", "OK"), ("/^STATUS_CODE_OK$/", "OK")),
-    "Where startup time goes (avg)": SPAN,
-    "Where preparation time goes (avg)": SPAN,
-    "Slowest workspace preparation steps (avg)": SPAN,
-    "Workspace sync: where time goes (avg)": SPAN,
-    "Controller startup phases (slowest)": SPAN,
-    "Task detail read phases (avg)": SPAN,
-    "Turn latency to first activity (p95)": SPAN,
-    "Controller span errors per hour": SPAN,
-    "Budget operations per hour": SPAN,
-    "Busiest spans per minute": SPAN,
-    "Span errors per hour": SPAN,
-}
+RENAMES = {title: SPAN for title in (
+    "Where startup time goes (avg)", "Where native preparation time goes (avg)", "Where run preparation time goes (avg)",
+    "Where configuration time goes (avg)", "Where skills preparation goes (avg)", "Preparation over time (avg by phase)",
+    "Preparation phase p95", "Execution phases (avg)", "Completion phases (avg)", "Execution and completion over time (avg)",
+    "Slowest workspace preparation steps (avg)", "Workspace sync: where time goes (avg)", "Controller startup phases (slowest)",
+    "Task detail read phases (avg)", "Turn latency to first activity (p95)", "Controller span errors per hour",
+    "Budget operations per hour", "Busiest spans per minute", "Span errors per hour")}
 EMPTY_IS_GOOD = {   # a chart that is empty because nothing went wrong should say so
     "Tool failures per 5 min by tool": "No tool failures in this range",
-    "HTTP server errors per 5 min": "No server errors in this range",
     "Controller span errors per hour": "No controller errors in this range",
     "Span errors per hour": "No span errors in this range",
 }
@@ -575,6 +639,10 @@ for pnl in panels:
         pnl["fieldConfig"]["defaults"]["color"] = {"mode": "thresholds"}
         pnl["fieldConfig"]["defaults"]["thresholds"] = {"mode": "absolute", "steps": STAT_STEPS[title]}
         pnl["options"]["colorMode"] = "value"
+
+for pnl in panels[native_start:native_end]:   # panels that only fill for paperclip_runner agents
+    if pnl["type"] != "row" and pnl["fieldConfig"]["defaults"].get("noValue") in ("none in this range", "-"):
+        pnl["fieldConfig"]["defaults"]["noValue"] = NATIVE_EMPTY
 
 dashboard = {
     "uid": "paperclip",

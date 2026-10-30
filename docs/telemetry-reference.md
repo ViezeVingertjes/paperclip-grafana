@@ -28,7 +28,23 @@ The one exception is the PostgreSQL auto-instrumentation, whose `db.statement` c
 
 ## Spans the dashboard reads
 
-### Native agent runs (`paperclip.native-runner`, schema v3)
+### Every adapter: the executor attempt
+
+`task.execution_attempt` is the server's root span for **one invocation of the executor**, whatever the agent's adapter
+(`claude_local`, `codex_local`, `paperclip_runner`, ...). It carries `paperclip.task.run.run_id`, and its children are the
+phases every run goes through: `heartbeat.prepare.<phase>` (run configuration, workspace, instructions, task context ...),
+`skills.*`, `runtime_selection.*`, `workspace.*`, `execution.*` (usage startup, MCP handoff, dispatch admission, budget
+reservation, runtime, usage, realtime) and `completion.*` (run-log finalization, terminal write, cost, liveness, summary).
+The **Runs**, **Run preparation** and **Execution and completion** rows are built on these, so they fill for any agent.
+
+A failed run is not always an error on the attempt: a native-runner failure marks `task.provider_session` instead, so the
+*Failed runs* tiles count error spans on both.
+
+### Native runner agents (`paperclip.native-runner`, schema v3)
+
+Only agents with the `paperclip_runner` adapter produce these. The runner accepts a task in `standard`, `planning` or
+`ask` work mode and an active agent; a run without such a task (for example a bare heartbeat) is rejected before any
+provider work starts. The rows named *Native runner* stay empty for legacy adapters.
 
 ```text
 task.provider_session                      root of a run; links to the server's task.execution_attempt
@@ -88,10 +104,12 @@ second or more, with `paperclip.native_reconciliation.scoped` and `.candidates`.
 
 ### Auto-instrumentation (`@opentelemetry/auto-instrumentations-node`)
 
-HTTP, Express and PostgreSQL spans (the `fs`, `dns` and `net` instrumentations are disabled by Paperclip). The dashboard
-reads server spans with `http.route` and PostgreSQL client spans with `db.system = "postgresql"`, `db.operation` and
-`db.statement`. These attribute names follow the semantic-convention version of the installed instrumentation; if a
-newer Paperclip moves to the stable names (`http.response.status_code`, `db.query.text`, ...), update the generator.
+HTTP and Express spans, plus the spans of Paperclip's authentication library (the `fs`, `dns` and `net`
+instrumentations are disabled by Paperclip). Measured on a real instance: server spans are named after the request method
+(`GET`, `POST`, ...) and carry the **stable** semantic-convention attributes `http.request.method`,
+`http.response.status_code` and `url.path`; Express spans have no `http.route`. There are **no PostgreSQL client spans**
+(only the authentication library's own `db ...` spans), so the dashboard has no database panels. If a newer Paperclip
+adds a database instrumentation, add panels for it in the generator.
 
 ## Not in the dashboard
 

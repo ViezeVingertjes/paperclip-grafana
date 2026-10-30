@@ -4,8 +4,8 @@ query instead of an empty Grafana.
 
 Paperclip exports traces only, so this sends traces only: Tempo derives the span metrics from them. Covers every span
 name and span attribute the dashboard queries (see docs/telemetry-reference.md): native agent runs with their full
-lifecycle (one failed), execution preparation and workspace sync, controller phases (one failed), budget, Slack
-receipts, and the HTTP and PostgreSQL auto-instrumentation spans.
+lifecycle (one failed), the executor attempt every adapter produces (preparation, skills, execution, completion), workspace
+sync, controller phases (one failed), budget, Slack receipts, and the HTTP auto-instrumentation spans.
 
   tools/send_sample_telemetry.py [otlp-http-base-url]   (default http://127.0.0.1:4318, or $OTLP_URL)
 """
@@ -18,7 +18,7 @@ SERVICE = os.environ.get("SAMPLE_SERVICE_NAME", "paperclip-sample")
 NS = "paperclip.native.span."
 RNG = random.Random(7)   # fixed seed: the same sample every run
 
-INTERNAL, SERVER, CLIENT = 1, 2, 3
+INTERNAL, SERVER = 1, 2
 OK, ERROR = 1, 2
 
 PROVIDERS = ["claude", "codex", "opencode"]
@@ -127,24 +127,41 @@ def native_run(i, t0, provider, failed=False, resumed=False):
 
 
 def execution_attempt(i, t0):
-    """Server-side attempt: preparation phases and the detailed workspace spans (paperclip.execution tracer)."""
+    """Server-side attempt every adapter produces: preparation, skills, execution and completion (paperclip.* tracers)."""
     tr = Trace()
     rid = {"paperclip.task.run.run_id": run_hash(i)}
     end = t0 + 30
-    root = tr.add("", "task.execution_attempt", t0, end, **rid)
+    root = tr.add("", "task.execution_attempt", t0, end, failed=(i == 2), **rid)
     ws = tr.add(root, "heartbeat.prepare.workspace", t0, t0 + 20, **rid)
     tr.add(ws, "heartbeat.prepare.workspace_source_materialize", t0 + 1, t0 + 12, **rid)
     tr.add(ws, "heartbeat.prepare.workspace_provisioning", t0 + 12, t0 + 15, **rid)
     tr.add(ws, "heartbeat.prepare.workspace_repository_admission", t0 + 15, t0 + 19, **rid)
+    tr.add(ws, "heartbeat.prepare.workspace_provision", t0 + 12, t0 + 15, **rid)
     outcome = ["hit", "miss", "published", "disabled"][i % 4]
     tr.add(ws, "workspace.checkout.git_clone", t0 + 2, t0 + 9, **{"paperclip.execution.repositoryCache.outcome": outcome,
                                                                    "paperclip.execution.repositoryCache.reference_supplied": outcome == "hit"})
     tr.add(ws, "workspace.checkout.cache_lookup", t0 + 1, t0 + 2, **{"paperclip.execution.repositoryCache.outcome": outcome})
+    cfg = tr.add(root, "heartbeat.prepare.execution_configuration", t0 + 1, t0 + 3, **rid)
+    for j, name in enumerate(["configuration_skills", "configuration_secrets", "configuration_mentions", "configuration_github_identity",
+                              "configuration_connector_assignments", "configuration_agent_identity"]):
+        tr.add(cfg, f"heartbeat.prepare.{name}", t0 + 1 + j * 0.1, t0 + 1.2 + j * 0.2 * (1 if j else 5), **rid)
+    for j, name in enumerate(["agent_read", "chat_completion", "conversation", "runtime_state", "issue_context", "run_identity", "trust_preset",
+                              "task_context", "environment_selection", "session", "run_output", "runtime_services", "instructions",
+                              "github_environment", "runtime_selection"]):
+        tr.add(root, f"heartbeat.prepare.{name}", t0 + j * 0.2, t0 + j * 0.2 + 0.05 + 0.03 * (j % 5), **rid)
+    for j, name in enumerate(["skills.inventory", "skills.cache.acquire", "skills.rows", "skills.version.read", "skills.version.materialize",
+                              "skills.version.verify", "skills.consume", "skills.repository.read"]):
+        tr.add(cfg, name, t0 + 1 + j * 0.1, t0 + 1.1 + j * 0.1 + 0.02 * j, **rid)
     sync = tr.add(root, "runtime_selection.workspace_sync", t0 + 20, t0 + 29)
     for j, name in enumerate(["workspace_sync.stage_workspace", "workspace_sync.transfer", "workspace_sync.pack", "workspace_sync.snapshot_git",
                               "workspace_sync.snapshot_baseline", "workspace_sync.seed_lookup", "workspace_sync.inbound_barrier", "workspace_sync.git_clone"]):
         tr.add(sync, name, t0 + 20 + j * 0.5, t0 + 21 + j * 0.9, **({"paperclip.execution.fileCount": 120 + i, "paperclip.execution.bytes": 5_000_000 + 400_000 * j}
                                                                        if name.endswith(("transfer", "pack")) else {}))
+    for j, name in enumerate(["execution.usage_startup", "execution.mcp_handoff", "execution.dispatch_admission", "execution.budget_reservation",
+                              "execution.runtime", "execution.usage", "execution.realtime"]):
+        tr.add(root, name, t0 + 21 + j * 0.3, t0 + 21.2 + j * 0.3 + 0.1 * j, **rid)
+    for j, name in enumerate(["completion.run", "completion.output", "completion.cost", "completion.terminal_write", "completion.summary", "completion.liveness"]):
+        tr.add(root, name, t0 + 24 + j * 0.2, t0 + 24.3 + j * 0.2 + 0.05 * j, **rid)
     return tr
 
 
@@ -192,13 +209,12 @@ def slack(t0):
     return tr
 
 
-def http_request(t0, route, db_op, slow=False, failed=False):
-    """A server span with a PostgreSQL client child, as the HTTP and pg auto-instrumentation produce them."""
+def http_request(t0, method, path, status=200, slow=False):
+    """A server span as the HTTP auto-instrumentation produces it (stable semantic conventions): named after the method."""
     tr = Trace()
-    dur = 0.12 + (0.9 if slow else 0)
-    root = tr.add("", f"GET {route}", t0, t0 + dur, kind=SERVER, failed=failed, **{"http.route": route, "http.method": "GET", "http.status_code": 500 if failed else 200})
-    tr.add(root, f"pg.query:{db_op}", t0 + 0.01, t0 + 0.01 + (0.8 if slow else 0.03), kind=CLIENT, **{
-        "db.system": "postgresql", "db.operation": db_op, "db.statement": f"{db_op} id, status FROM issues WHERE company_id = $1"})
+    dur = 0.04 + (0.5 if slow else 0)
+    tr.add("", method, t0, t0 + dur, kind=SERVER, failed=status >= 500, **{
+        "http.request.method": method, "http.response.status_code": status, "url.path": path})
     return tr
 
 
@@ -214,9 +230,9 @@ def all_traces():
         out.append(issue_read(NOW - 600 + k * 60))
         out.append(slack(NOW - 500 + k * 60))
     for k in range(12):
-        out.append(http_request(NOW - 400 + k * 20, "/api/issues/:id", "SELECT", slow=(k == 3)))
-        out.append(http_request(NOW - 390 + k * 20, "/api/companies/:companyId/agents", "SELECT", failed=(k == 7)))
-        out.append(http_request(NOW - 380 + k * 20, "/api/runs", "INSERT"))
+        out.append(http_request(NOW - 400 + k * 20, "GET", "/api/issues/sample-issue", slow=(k == 3)))
+        out.append(http_request(NOW - 390 + k * 20, "GET", "/api/companies/sample-company/agents", status=500 if k == 7 else 200))
+        out.append(http_request(NOW - 380 + k * 20, "POST", "/api/runs", status=201))
     return out
 
 

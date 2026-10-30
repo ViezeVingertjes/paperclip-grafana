@@ -54,7 +54,7 @@ class SampleTelemetryCoversTheDashboard(unittest.TestCase):
     def test_covers_every_span_attribute_the_dashboard_reads(self):
         used = set(re.findall(r"span\.([A-Za-z0-9_.]+?)(?=[\s,)=!>]|$)", self.queries))
         used |= {m.replace("span.", "", 1) for m in re.findall(r"\b(span\.paperclip\.[A-Za-z0-9_.]+)", self.queries)}
-        used = {u for u in used if u.startswith(("paperclip.", "budget.", "http.", "db."))}
+        used = {u for u in used if u.startswith(("paperclip.", "budget.", "http.", "url."))}
         self.assertTrue(used, "no span attribute found in the dashboard, check the regex")
         sent = set().union(*(attr_keys(s) for s in self.spans))
         self.assertEqual(used - sent, set())
@@ -62,11 +62,15 @@ class SampleTelemetryCoversTheDashboard(unittest.TestCase):
     def test_has_failed_runs_and_failed_tools(self):
         failed = {s["name"] for s in self.spans if s["status"]["code"] == sample.ERROR}
         self.assertIn("task.provider_session", failed)
+        self.assertIn("task.execution_attempt", failed)
         self.assertIn("tool.execute", failed)
         self.assertIn("controller.startup.native_recovery", failed)
 
-    def test_has_server_and_client_spans(self):
-        self.assertEqual({s["kind"] for s in self.spans if s["name"].startswith(("GET ", "pg."))}, {sample.SERVER, sample.CLIENT})
+    def test_has_server_spans_with_stable_http_attributes(self):
+        server = [s for s in self.spans if s["kind"] == sample.SERVER]
+        self.assertTrue(server)
+        for span in server:
+            self.assertTrue({"http.request.method", "http.response.status_code", "url.path"} <= attr_keys(span))
 
     def test_run_ids_are_hashes_not_uuids(self):
         ids = {a["value"]["stringValue"] for s in self.spans for a in s["attributes"] if a["key"] == "paperclip.task.run.run_id"}
