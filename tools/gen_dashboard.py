@@ -151,8 +151,8 @@ def bargauge(title, expr, unit, x, y, w=8, h=7, ds=PROM, desc="", legend=""):
         bd["max"] = 1
     p["fieldConfig"] = {"defaults": bd, "overrides": []}
     p["options"] = {"orientation": "horizontal", "displayMode": "gradient", "showUnfilled": True, "valueMode": "color",
-                    "namePlacement": "top", "sizing": "manual", "minVizHeight": 26, "maxVizHeight": 34, "minVizWidth": 8,
-                    "text": {"titleSize": 13, "valueSize": 14},
+                    "namePlacement": "top", "sizing": "manual", "minVizHeight": 40, "maxVizHeight": 48, "minVizWidth": 8,
+                    "text": {"titleSize": 12, "valueSize": 13},
                     "reduceOptions": {"calcs": ["lastNotNull"], "values": False, "fields": ""}}
     return p
 
@@ -164,6 +164,7 @@ def tempo_table(title, query, x, y, w, h, table_type, desc="", rename=None, orde
                         "overrides": unit_overrides or []}
     p["options"] = {"showHeader": True, "cellHeight": "sm"}
     alias = {"duration": "Duration", "time": "Start time", "spanID": "Span ID", "name": "Name"}
+    rename = {**(rename or {}), **{alias[k]: v for k, v in (rename or {}).items() if k in alias}}   # Tempo names these columns itself
     tr = []
     if sort:
         tr.append({"id": "sortBy", "options": {"fields": {}, "sort": [{"field": alias.get(sort, sort), "desc": True}]}})
@@ -370,12 +371,12 @@ y += 8
 COMMON_HIDE = ["traceService", "traceName", "service.name"]
 DURATION_NS = [{"matcher": {"id": "byName", "options": "Duration"}, "properties": [{"id": "unit", "value": "ns"}]}]
 panels += [
-    tempo_table("Slowest runs", f'{tq(ATTEMPT)} | select(span.paperclip.task.run.run_id)', 0, y, 12, 8, "spans",
+    tempo_table("Slowest runs", f'{tq(ATTEMPT)} | select(span.paperclip.task.run.run_id)', 0, y, 9, 8, "spans",
                 hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "paperclip.task.run.run_id", "time", "spanID"],
                 desc="Run ID is the first 12 hex characters of the SHA-256 of the run UUID, never the UUID itself.",
                 rename={"duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "time": "Start", "spanID": "Span ID"},
                 unit_overrides=DURATION_NS),
-    tempo_table("Failed runs", tq(RUNS_RE, "status = error", regex=True) + " | select(span.paperclip.task.run.run_id, span.paperclip.task.run.outcome)", 12, y, 12, 8, "spans",
+    tempo_table("Failed runs", tq(RUNS_RE, "status = error", regex=True) + " | select(span.paperclip.task.run.run_id, span.paperclip.task.run.outcome)", 9, y, 15, 8, "spans",
                 hide=COMMON_HIDE, sort="time", order=["time", "name", "duration", "paperclip.task.run.run_id", "paperclip.task.run.outcome", "spanID"],
                 desc="Runs whose root span has an error status. Empty is good. Open the span ID to see which phase failed.",
                 rename={"name": "Span", "duration": "Duration", "paperclip.task.run.run_id": "Run (hash)", "paperclip.task.run.outcome": "Outcome", "time": "Start", "spanID": "Span ID"},
@@ -394,14 +395,14 @@ PREP_MAIN = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace|instru
 PREP_DOMINANT = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace)"
 SKILLS = "skills\\\\..*"
 panels += [
-    bargauge("Where run preparation time goes (avg)", f'{tq(PREP, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 0, y, 8, 9, ds=TEMPO,
+    bargauge("Where run preparation time goes (avg)", f'{tq(PREP, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 11, ds=TEMPO,
              desc="Mean duration of each top-level preparation phase (heartbeat.prepare.*). Phases run before the provider starts; workspace and configuration contain sub-steps, shown separately."),
-    bargauge("Where configuration time goes (avg)", f'{tq(PREP_CONFIG, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 8, y, 8, 9, ds=TEMPO,
+    bargauge("Where configuration time goes (avg)", f'{tq(PREP_CONFIG, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 8, y, 8, 11, ds=TEMPO,
              desc="Sub-steps of heartbeat.prepare.execution_configuration: skills, secrets, connectors, GitHub and agent identity. They are inside the configuration duration; do not add them to it."),
-    bargauge("Where skills preparation goes (avg)", f'{tq(SKILLS, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 16, y, 8, 9, ds=TEMPO,
+    bargauge("Where skills preparation goes (avg)", f'{tq(SKILLS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 16, y, 8, 11, ds=TEMPO,
              desc="Skill inventory, version read, materialization and verification (skills.*). These sit inside configuration_skills."),
 ]
-y += 9
+y += 11
 panels += [
     ts("Preparation over time (avg by phase)", [f'{tq(PREP_MAIN, regex=True)} | avg_over_time(duration) by (name)'],
        "s", 0, y, 12, 8, ds=TEMPO, stack=True, desc="The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower."),
@@ -416,14 +417,14 @@ EXEC = "execution\\\\..*"
 COMP = "completion\\\\..*"
 EXEC_MAIN = "(execution|completion)\\\\.(runtime|usage|run|output|cost|terminal_write)"
 panels += [
-    bargauge("Execution phases (avg)", f'{tq(EXEC, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 0, y, 8, 8, ds=TEMPO,
+    bargauge("Execution phases (avg)", f'{tq(EXEC, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 11, ds=TEMPO,
              desc="Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents."),
-    bargauge("Completion phases (avg)", f'{tq(COMP, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 8, y, 8, 8, ds=TEMPO,
+    bargauge("Completion phases (avg)", f'{tq(COMP, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 8, y, 8, 11, ds=TEMPO,
              desc="Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*)."),
     ts("Execution and completion over time (avg)", [f'{tq(EXEC_MAIN, regex=True)} | avg_over_time(duration) by (name)'],
-       "s", 16, y, 8, 8, ds=TEMPO, stack=True, desc="How long the main post-dispatch phases took per step."),
+       "s", 16, y, 8, 11, ds=TEMPO, stack=True, desc="How long the main post-dispatch phases took per step."),
 ]
-y += 8
+y += 11
 
 # ============================================================================== Startup (native)
 native_start = len(panels)
@@ -441,12 +442,12 @@ panels += [
 ]
 y += 8
 panels += [
-    bargauge("Where startup time goes (avg)", f'{tq(STARTUP, regex=True)} | avg_over_time(duration) by (name)', "s", 0, y, 12, 8, ds=TEMPO,
+    bargauge("Where startup time goes (avg)", f'{tq(STARTUP, regex=True)} | avg_over_time(duration) by (name)', "s", 0, y, 12, 11, ds=TEMPO,
              desc="Mean duration per Runner startup phase. Nested phases overlap their parents (for example artifact preparation sits inside transport connect), so do not add the bars."),
-    bargauge("Where native preparation time goes (avg)", f'{tq(PREPARE, regex=True)} | avg_over_time(duration) by (name)', "s", 12, y, 12, 8, ds=TEMPO,
+    bargauge("Where native preparation time goes (avg)", f'{tq(PREPARE, regex=True)} | avg_over_time(duration) by (name)', "s", 12, y, 12, 11, ds=TEMPO,
              desc="Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins."),
 ]
-y += 8
+y += 11
 
 # ============================================================================== Turns and tools (native)
 panels.append(row("Native runner: agent turns and tools", y)); y += 1
@@ -500,12 +501,12 @@ panels.append(row("Workspace and environment", y)); y += 1
 WS = r"workspace_sync\\.(stage_workspace|transfer|pack|snapshot_git|snapshot_baseline|seed_lookup|inbound_barrier|git_clone)"
 PREP_WS = r"heartbeat\\.prepare\\.workspace_.*"
 panels += [
-    ts("Workspace sync: where time goes (avg)", [f'{tq(WS, regex=True)} | avg_over_time(duration) by (name)'], "s", 0, y, 12, 8, ds=TEMPO, stack=True,
+    ts("Workspace sync: where time goes (avg)", [f'{tq(WS, regex=True)} | avg_over_time(duration) by (name)'], "s", 0, y, 12, 11, ds=TEMPO, stack=True,
        desc="Mean duration of the main workspace_sync phases (remote and sandbox targets). Parallel tasks overlap, and parents include their children, so do not add the layers for elapsed time."),
-    bargauge("Slowest workspace preparation steps (avg)", f'{tq(PREP_WS, regex=True)} | avg_over_time(duration) by (name) | topk(10)', "s", 12, y, 12, 8, ds=TEMPO,
-             desc="Ten slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it."),
+    bargauge("Slowest workspace preparation steps (avg)", f'{tq(PREP_WS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 12, y, 12, 11, ds=TEMPO,
+             desc="Eight slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it."),
 ]
-y += 8
+y += 11
 panels += [
     bargauge("Repository checkout cache", f'{{ {TSVC} && span.paperclip.execution.repositoryCache.outcome != nil }} | count_over_time() by (span.paperclip.execution.repositoryCache.outcome)',
              "short", 0, y, 8, 7, ds=TEMPO,
@@ -521,14 +522,14 @@ y += 7
 panels.append(row("Controller and recovery", y)); y += 1
 CTRL = r"controller\\..*"
 panels += [
-    bargauge("Controller startup phases (slowest)", f'{tq(CTRL, regex=True)} | max_over_time(duration) by (name) | topk(10)', "s", 0, y, 8, 8, ds=TEMPO,
+    bargauge("Controller startup phases (slowest)", f'{tq(CTRL, regex=True)} | max_over_time(duration) by (name) | topk(8)', "s", 0, y, 8, 11, ds=TEMPO,
              desc="Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one."),
-    ts("Controller span errors per hour", [(per(CTRL, 3600, err=True, regex=True, by="span_name"), "{{span_name}}")], "short", 8, y, 8, 8, bars=True, stack=True,
+    ts("Controller span errors per hour", [(per(CTRL, 3600, err=True, regex=True, by="span_name"), "{{span_name}}")], "short", 8, y, 8, 11, bars=True, stack=True,
        desc="Error spans from controller.* phases per hour. Empty is good."),
-    ts("Native reconciliation passes", [quant("controller.native_reconciliation", "0.5, 0.95")], "s", 16, y, 8, 8, ds=TEMPO,
+    ts("Native reconciliation passes", [quant("controller.native_reconciliation", "0.5, 0.95")], "s", 16, y, 8, 11, ds=TEMPO,
        desc="Duration of native finalization reconciliation passes. Only passes of one second or longer are recorded, so no data means every pass was fast."),
 ]
-y += 8
+y += 11
 
 # ============================================================================== Budget
 panels.append(row("Budget", y)); y += 1
@@ -556,15 +557,15 @@ panels += [
 y += 8
 panels += [
     tempo_table("Slowest API requests (over 250 ms, slowest first)",
-                f'{{ {TSVC} && kind = server && duration > 250ms }} | select(span.http.request.method, span.url.path, span.http.response.status_code)', 0, y, 16, 8, "spans",
+                f'{{ {TSVC} && kind = server && duration > 250ms }} | select(span.http.request.method, span.url.path, span.http.response.status_code)', 0, y, 16, 11, "spans",
                 hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "http.request.method", "url.path", "http.response.status_code", "time", "spanID"],
                 desc="The path is the request path as received, so it can contain task or agent IDs.",
                 rename={"duration": "Duration", "http.request.method": "Method", "url.path": "Path", "http.response.status_code": "Status", "time": "Start", "spanID": "Span ID"},
                 unit_overrides=DURATION_NS),
-    bargauge("Task detail read phases (avg)", f'{tq(ISSUE_READ, regex=True)} | avg_over_time(duration) by (name) | topk(10)', "s", 16, y, 8, 8, ds=TEMPO,
+    bargauge("Task detail read phases (avg)", f'{tq(ISSUE_READ, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 16, y, 8, 11, ds=TEMPO,
              desc="GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap."),
 ]
-y += 8
+y += 11
 
 # ============================================================================== Chat
 panels.append(row("Chat channels", y)); y += 1
@@ -608,22 +609,49 @@ def rn(*pairs):
     return [{"id": "renameByRegex", "options": {"regex": r, "renamePattern": to}} for r, to in pairs]
 
 
-# TraceQL metrics name quantile series {p=0.95, span.x="v"}; show them as "p95 v" (and plain {p=0.95} as "p95").
+# TraceQL metrics name their series differently per query, and the label order varies:
+#   quantile without `by`            0.5 / 0.95
+#   quantile by a span name          {name="task.prepare", p=0.95}        (intrinsic first)
+#   quantile by a span attribute     {p=0.95, span.http.request.method="GET"}   (p first)
+#   anything else without `by`       the function name (sum_over_time, avg_over_time ...)
+# Show quantiles as "p95 <name>". Span-name prefixes are dropped per panel below, only where the panel title already names the family.
 QUANTILES = rn(
     (r"/^0\.5(?:0*)$/", "p50"), (r"/^0\.95$/", "p95"),
+    (r'/^\{name="([^"]*)", p=0\.5(?:0*)\}$/', "p50 $1"), (r'/^\{name="([^"]*)", p=0\.95\}$/', "p95 $1"),
     (r'/^\{p=0\.5(?:0*), [^=]+="([^"]*)"\}$/', "p50 $1"), (r'/^\{p=0\.95, [^=]+="([^"]*)"\}$/', "p95 $1"),
     (r'/^\{[^=]+="([^"]*)"\}$/', "$1"),
 )
-SPAN = rn(("/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/", "$1"),
-          ("/_/g", " "), ("/\\./g", " > "))
-RENAMES = {"Where configuration time goes (avg)": SPAN + rn(("/^configuration /", ""))}
-RENAMES |= {title: SPAN for title in (
-    "Where startup time goes (avg)", "Where native preparation time goes (avg)", "Where run preparation time goes (avg)",
-    "Where skills preparation goes (avg)", "Preparation over time (avg by phase)",
-    "Preparation phase p95", "Execution phases (avg)", "Completion phases (avg)", "Execution and completion over time (avg)",
-    "Slowest workspace preparation steps (avg)", "Workspace sync: where time goes (avg)", "Controller startup phases (slowest)",
-    "Task detail read phases (avg)", "Turn latency to first activity (p95)", "Controller span errors per hour",
-    "Budget operations per hour", "Busiest spans per minute", "Span errors per hour")}
+TAIL = rn(("/_/g", " "), ("/\\./g", " > "))   # execution_configuration -> execution configuration, a.b -> a > b
+
+
+def strip(prefix):
+    """Drop a span-name prefix (a regex), keeping a leading 'p50 ' / 'p95 ', then make the rest readable."""
+    return rn((f"/^((?:p50|p95) )?{prefix}/", "$1")) + TAIL
+
+
+PREP = r"heartbeat\.prepare\."
+RENAMES = {
+    "Where run preparation time goes (avg)": strip(PREP),
+    "Where configuration time goes (avg)": strip(PREP + r"configuration_"),
+    "Preparation over time (avg by phase)": strip(PREP),
+    "Preparation phase p95": strip(PREP),
+    "Slowest workspace preparation steps (avg)": strip(PREP + r"workspace_"),
+    "Where skills preparation goes (avg)": strip(r"skills\."),
+    "Execution phases (avg)": strip(r"execution\."),
+    "Completion phases (avg)": strip(r"completion\."),
+    "Execution and completion over time (avg)": TAIL,
+    "Where startup time goes (avg)": strip(r"runner\."),
+    "Where native preparation time goes (avg)": strip(r"heartbeat\."),
+    "Turn latency to first activity (p95)": strip(r"(?:runner|provider)\."),
+    "Workspace sync: where time goes (avg)": strip(r"workspace_sync\."),
+    "Controller startup phases (slowest)": strip(r"controller\.startup\."),
+    "Controller span errors per hour": strip(r"controller\.(?:startup\.)?"),
+    "Task detail read phases (avg)": strip(r"issue\.read\."),
+    "Budget operations per hour": strip(r"budget\."),
+}
+RENAMES["Workspace data written per 5 min"] = rn(("/^sum_over_time$/", "bytes written"))
+RENAMES["Bytes transferred per 5 min (native)"] = rn(("/^sum_over_time$/", "bytes transferred"))
+RENAMES["Receipt queue time (avg)"] = rn(("/^avg_over_time$/", "queue time"))
 EMPTY_IS_GOOD = {   # a chart that is empty because nothing went wrong should say so
     "Tool failures per 5 min by tool": "No tool failures in this range",
     "Controller span errors per hour": "No controller errors in this range",
@@ -667,9 +695,9 @@ dashboard = {
     "time": {"from": "now-3h", "to": "now"},
     "templating": {"list": [{
         "name": "service", "label": "Instance", "type": "query", "datasource": PROM,
-        "query": {"query": 'label_values(traces_spanmetrics_calls_total{span_name=~"task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*"}, service)', "refId": "s"},
-        "definition": 'label_values(traces_spanmetrics_calls_total{span_name=~"task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*"}, service)',
-        "refresh": 2, "includeAll": True, "multi": True, "allValue": ".*",
+        "query": {"query": 'label_values(traces_spanmetrics_calls_total{span_name=~"task\\\\.execution_attempt|task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*"}, service)', "refId": "s"},
+        "definition": 'label_values(traces_spanmetrics_calls_total{span_name=~"task\\\\.execution_attempt|task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*"}, service)',
+        "refresh": 2, "includeAll": True, "multi": True,   # no allValue: "All" expands to the services that emit Paperclip spans, not to every service in Tempo
         "current": {"selected": True, "text": "All", "value": "$__all"}, "sort": 1}] + DATASOURCE_VARS},
     "annotations": {"list": []},
     "panels": panels,

@@ -37,6 +37,14 @@ Paperclip loads its OpenTelemetry SDK only when you install it, at the exact ver
 Build the image with `./install.sh --build-image` (or the `paperclip-otel/Containerfile`), run Paperclip from it, and
 restart. If it names a version mismatch, bump the versions in the Containerfile to the ones the message expects.
 
+## Why are all the *Native runner* panels empty?
+
+They only fill for agents with the `paperclip_runner` adapter. Agents on legacy adapters such as `claude_local` fill every
+other row, because they all produce `task.execution_attempt` and its children. A native run additionally needs a task in
+`standard`, `planning` or `ask` work mode, a Paperclip image built with `--target production`, and a credential the
+runner accepts (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` bound to the agent; the runner does not read the host's
+Claude login). See *Troubleshooting* in the README for the two errors you meet when one of those is missing.
+
 ## A panel is empty or shows "none in this range"
 
 Usually that is true: nothing of that kind happened in the range (no failed runs is good). If a panel should have data,

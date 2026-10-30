@@ -47,7 +47,8 @@ Agent runs last minutes, so percentiles can never come from the span-metric hist
 ## Quick start
 
 You need Linux with systemd, [Podman](https://podman.io/) 4.4 or newer, `curl` and `python3`, and a Paperclip image
-(for example one built from the [Paperclip repository](https://github.com/paperclipai/paperclip)).
+(for example one built from the [Paperclip repository](https://github.com/paperclipai/paperclip) with
+`podman build --target production ...`; see the note under [Troubleshooting](#troubleshooting)).
 On Debian or Ubuntu: `sudo apt-get install -y podman curl python3`.
 On macOS, Windows or without systemd, use [Docker Compose](#docker-compose) instead.
 
@@ -187,6 +188,8 @@ Data lives in `~/.local/share/otel-lgtm` (`docker compose down -v` for the compo
 | Paperclip logs "the @opentelemetry/* packages are not installed" | Run it from the `paperclip-otel` image (`./install.sh --build-image`), at the versions its `server/package.json` declares. |
 | Paperclip cannot reach the collector | A container cannot use a port published on the host's `127.0.0.1`. Put both on `paperclip-net` and export to `http://otel-lgtm:4317`; for a stack started by something else, `podman network connect paperclip-net otel-lgtm`. |
 | Percentile panels are empty but counts are not | Percentiles come from TraceQL metrics, which only cover recent data; run something and look at a short range. |
+| Native runner runs fail with `admission_installation` | You built Paperclip's last Dockerfile stage, the `cloud` variant, which adds a nested `/app/server/node_modules/.pnpm` and breaks the runner sidecar's provider-package lookup. Build with `--target production`, which is what Paperclip's own CI pins. |
+| Native runner runs fail with `session_ensure_failed` | The native runner starts the agent in a sanitized environment and does not see the host's Claude login. Give the agent a credential it accepts: `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token) or `ANTHROPIC_API_KEY`, through Paperclip's secrets or the agent's connection setup. |
 | Stack does not start at boot | Lingering is off: run `sudo loginctl enable-linger $USER`. |
 | "Port already in use" | Something else uses 3000, 4317 or 4318 on localhost. Free it and re-run `./install.sh`. |
 | A *Native runner* panel is empty | Those spans only exist for agents with the `paperclip_runner` adapter, on a task in `standard`, `planning` or `ask` mode. Legacy adapters such as `claude_local` fill every other row. Detail spans are also capped at 16 per name per attempt. See [`telemetry-reference.md`](docs/telemetry-reference.md). |

@@ -27,14 +27,13 @@
           "uid": "${ds_prometheus}"
         },
         "query": {
-          "query": "label_values(traces_spanmetrics_calls_total{span_name=~\"task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*\"}, service)",
+          "query": "label_values(traces_spanmetrics_calls_total{span_name=~\"task\\\\.execution_attempt|task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*\"}, service)",
           "refId": "s"
         },
-        "definition": "label_values(traces_spanmetrics_calls_total{span_name=~\"task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*\"}, service)",
+        "definition": "label_values(traces_spanmetrics_calls_total{span_name=~\"task\\\\.execution_attempt|task\\\\.provider_session|heartbeat\\\\.queue|controller\\\\..*\"}, service)",
         "refresh": 2,
         "includeAll": true,
         "multi": true,
-        "allValue": ".*",
         "current": {
           "selected": true,
           "text": "All",
@@ -1766,6 +1765,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -1926,7 +1939,7 @@
       "gridPos": {
         "x": 0,
         "y": 35,
-        "w": 12,
+        "w": 9,
         "h": 8
       },
       "datasource": {
@@ -2008,7 +2021,10 @@
               "duration": "Duration",
               "paperclip.task.run.run_id": "Run (hash)",
               "time": "Start",
-              "spanID": "Span ID"
+              "spanID": "Span ID",
+              "Duration": "Duration",
+              "Start time": "Start",
+              "Span ID": "Span ID"
             }
           }
         }
@@ -2020,9 +2036,9 @@
       "title": "Failed runs",
       "description": "Runs whose root span has an error status. Empty is good. Open the span ID to see which phase failed.",
       "gridPos": {
-        "x": 12,
+        "x": 9,
         "y": 35,
-        "w": 12,
+        "w": 15,
         "h": 8
       },
       "datasource": {
@@ -2107,7 +2123,11 @@
               "paperclip.task.run.run_id": "Run (hash)",
               "paperclip.task.run.outcome": "Outcome",
               "time": "Start",
-              "spanID": "Span ID"
+              "spanID": "Span ID",
+              "Name": "Span",
+              "Duration": "Duration",
+              "Start time": "Start",
+              "Span ID": "Span ID"
             }
           }
         }
@@ -2135,7 +2155,7 @@
         "x": 0,
         "y": 44,
         "w": 8,
-        "h": 9
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -2149,7 +2169,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"heartbeat\\\\.prepare\\\\.(agent_read|chat_completion|conversation|runtime_state|issue_context|run_identity|trust_preset|task_context|environment_selection|execution_configuration|session|workspace|run_output|runtime_services|instructions|github_environment|runtime_selection)\" } | avg_over_time(duration) by (name) | topk(12)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"heartbeat\\\\.prepare\\\\.(agent_read|chat_completion|conversation|runtime_state|issue_context|run_identity|trust_preset|task_context|environment_selection|execution_configuration|session|workspace|run_output|runtime_services|instructions|github_environment|runtime_selection)\" } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -2175,12 +2195,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -2208,6 +2228,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -2229,7 +2263,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?heartbeat\\.prepare\\./",
             "renamePattern": "$1"
           }
         },
@@ -2258,7 +2292,7 @@
         "x": 8,
         "y": 44,
         "w": 8,
-        "h": 9
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -2272,7 +2306,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"heartbeat\\\\.prepare\\\\.configuration_.*\" } | avg_over_time(duration) by (name) | topk(12)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"heartbeat\\\\.prepare\\\\.configuration_.*\" } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -2298,12 +2332,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -2331,6 +2365,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -2352,7 +2400,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?heartbeat\\.prepare\\.configuration_/",
             "renamePattern": "$1"
           }
         },
@@ -2369,13 +2417,6 @@
             "regex": "/\\./g",
             "renamePattern": " > "
           }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/^configuration /",
-            "renamePattern": ""
-          }
         }
       ]
     },
@@ -2388,7 +2429,7 @@
         "x": 16,
         "y": 44,
         "w": 8,
-        "h": 9
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -2402,7 +2443,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"skills\\\\..*\" } | avg_over_time(duration) by (name) | topk(12)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"skills\\\\..*\" } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -2428,12 +2469,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -2461,6 +2502,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -2482,7 +2537,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?skills\\./",
             "renamePattern": "$1"
           }
         },
@@ -2509,7 +2564,7 @@
       "description": "The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower.",
       "gridPos": {
         "x": 0,
-        "y": 53,
+        "y": 55,
         "w": 12,
         "h": 8
       },
@@ -2583,6 +2638,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -2604,7 +2673,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?heartbeat\\.prepare\\./",
             "renamePattern": "$1"
           }
         },
@@ -2631,7 +2700,7 @@
       "description": "95th percentile of the two phases that usually dominate preparation.",
       "gridPos": {
         "x": 12,
-        "y": 53,
+        "y": 55,
         "w": 12,
         "h": 8
       },
@@ -2724,6 +2793,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -2745,7 +2828,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?heartbeat\\.prepare\\./",
             "renamePattern": "$1"
           }
         },
@@ -2772,7 +2855,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 61,
+        "y": 63,
         "w": 24,
         "h": 1
       },
@@ -2785,9 +2868,9 @@
       "description": "Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents.",
       "gridPos": {
         "x": 0,
-        "y": 62,
+        "y": 64,
         "w": 8,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -2801,7 +2884,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"execution\\\\..*\" } | avg_over_time(duration) by (name) | topk(12)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"execution\\\\..*\" } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -2827,12 +2910,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -2860,6 +2943,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -2881,7 +2978,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?execution\\./",
             "renamePattern": "$1"
           }
         },
@@ -2908,9 +3005,9 @@
       "description": "Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*).",
       "gridPos": {
         "x": 8,
-        "y": 62,
+        "y": 64,
         "w": 8,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -2924,7 +3021,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"completion\\\\..*\" } | avg_over_time(duration) by (name) | topk(12)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"completion\\\\..*\" } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -2950,12 +3047,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -2983,6 +3080,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -3004,7 +3115,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?completion\\./",
             "renamePattern": "$1"
           }
         },
@@ -3031,9 +3142,9 @@
       "description": "How long the main post-dispatch phases took per step.",
       "gridPos": {
         "x": 16,
-        "y": 62,
+        "y": 64,
         "w": 8,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -3105,6 +3216,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -3120,13 +3245,6 @@
           "id": "renameByRegex",
           "options": {
             "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
-            "renamePattern": "$1"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
             "renamePattern": "$1"
           }
         },
@@ -3153,7 +3271,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 70,
+        "y": 75,
         "w": 24,
         "h": 1
       },
@@ -3166,7 +3284,7 @@
       "description": "Wait until the first deliverable text, measured from the accepted trigger (queueing, preparation, startup, provider latency and ingestion). p95 is dashed.",
       "gridPos": {
         "x": 0,
-        "y": 71,
+        "y": 76,
         "w": 8,
         "h": 8
       },
@@ -3259,6 +3377,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -3286,7 +3418,7 @@
       "description": "Runner session startup: transport, runtime staging and workspace sync, until the first durable turn.submitted event. p95 is dashed.",
       "gridPos": {
         "x": 8,
-        "y": 71,
+        "y": 76,
         "w": 8,
         "h": 8
       },
@@ -3379,6 +3511,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -3406,7 +3552,7 @@
       "description": "runner.session.bootstrap = a new provider session; runner.session.resume = an exact recovered session. Resumes skip most startup work.",
       "gridPos": {
         "x": 16,
-        "y": 71,
+        "y": 76,
         "w": 8,
         "h": 8
       },
@@ -3481,9 +3627,9 @@
       "description": "Mean duration per Runner startup phase. Nested phases overlap their parents (for example artifact preparation sits inside transport connect), so do not add the bars.",
       "gridPos": {
         "x": 0,
-        "y": 79,
+        "y": 84,
         "w": 12,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -3523,12 +3669,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -3556,6 +3702,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -3577,7 +3737,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?runner\\./",
             "renamePattern": "$1"
           }
         },
@@ -3604,9 +3764,9 @@
       "description": "Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins.",
       "gridPos": {
         "x": 12,
-        "y": 79,
+        "y": 84,
         "w": 12,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -3646,12 +3806,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -3679,6 +3839,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -3700,7 +3874,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?heartbeat\\./",
             "renamePattern": "$1"
           }
         },
@@ -3727,7 +3901,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 87,
+        "y": 95,
         "w": 24,
         "h": 1
       },
@@ -3740,7 +3914,7 @@
       "description": "From turn.submitted to the provider terminal event. Includes model time and tool use. p95 is dashed.",
       "gridPos": {
         "x": 0,
-        "y": 88,
+        "y": 96,
         "w": 8,
         "h": 8
       },
@@ -3833,6 +4007,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -3860,7 +4048,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 88,
+        "y": 96,
         "w": 8,
         "h": 8
       },
@@ -3924,7 +4112,7 @@
       "description": "submitted_to_started: time for the provider to accept the turn. time_to_first_agent_event: first meaningful provider activity (assistant or reasoning text, or a tool announcement), not a finished answer.",
       "gridPos": {
         "x": 16,
-        "y": 88,
+        "y": 96,
         "w": 8,
         "h": 8
       },
@@ -4017,6 +4205,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -4038,7 +4240,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?(?:runner|provider)\\./",
             "renamePattern": "$1"
           }
         },
@@ -4065,7 +4267,7 @@
       "description": "Native control-plane tool calls by their known semantic operation (anything else is 'other'). Counts per fixed 5-minute step; no arguments or call IDs are exported.",
       "gridPos": {
         "x": 0,
-        "y": 96,
+        "y": 104,
         "w": 8,
         "h": 8
       },
@@ -4139,6 +4341,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -4166,7 +4382,7 @@
       "description": "Tool executions that ended in an error status. Empty is good.",
       "gridPos": {
         "x": 8,
-        "y": 96,
+        "y": 104,
         "w": 8,
         "h": 8
       },
@@ -4240,6 +4456,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -4267,7 +4497,7 @@
       "description": "Authorization plus execution inside the server authority, including HTTP request time.",
       "gridPos": {
         "x": 16,
-        "y": 96,
+        "y": 104,
         "w": 8,
         "h": 8
       },
@@ -4360,6 +4590,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -4387,7 +4631,7 @@
       "description": "From a tool announcement to its last input update. Includes provider buffering and transport; not the exact end of model generation.",
       "gridPos": {
         "x": 0,
-        "y": 104,
+        "y": 112,
         "w": 8,
         "h": 7
       },
@@ -4480,6 +4724,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -4507,7 +4765,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 104,
+        "y": 112,
         "w": 16,
         "h": 7
       },
@@ -4590,7 +4848,10 @@
               "duration": "Duration",
               "paperclip.native.span.operation": "Tool",
               "time": "Start",
-              "spanID": "Span ID"
+              "spanID": "Span ID",
+              "Duration": "Duration",
+              "Start time": "Start",
+              "Span ID": "Span ID"
             }
           }
         }
@@ -4603,7 +4864,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 111,
+        "y": 119,
         "w": 24,
         "h": 1
       },
@@ -4616,7 +4877,7 @@
       "description": "Agent turns by provider kind (for ACPX the underlying agent, such as claude or codex).",
       "gridPos": {
         "x": 0,
-        "y": 112,
+        "y": 120,
         "w": 8,
         "h": 7
       },
@@ -4657,12 +4918,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -4685,6 +4946,20 @@
           "options": {
             "regex": "/^0\\.95$/",
             "renamePattern": "p95"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
           }
         },
         {
@@ -4717,7 +4992,7 @@
       "description": "Native sessions by the driver that ran them.",
       "gridPos": {
         "x": 8,
-        "y": 112,
+        "y": 120,
         "w": 8,
         "h": 7
       },
@@ -4758,12 +5033,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -4786,6 +5061,20 @@
           "options": {
             "regex": "/^0\\.95$/",
             "renamePattern": "p95"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
           }
         },
         {
@@ -4818,7 +5107,7 @@
       "description": "How the session lifecycle policy treated the provider session (for example warm reuse versus a new session).",
       "gridPos": {
         "x": 16,
-        "y": 112,
+        "y": 120,
         "w": 8,
         "h": 7
       },
@@ -4859,12 +5148,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -4887,6 +5176,20 @@
           "options": {
             "regex": "/^0\\.95$/",
             "renamePattern": "p95"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
           }
         },
         {
@@ -4919,7 +5222,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 119,
+        "y": 127,
         "w": 24,
         "h": 1
       },
@@ -4932,9 +5235,9 @@
       "description": "Mean duration of the main workspace_sync phases (remote and sandbox targets). Parallel tasks overlap, and parents include their children, so do not add the layers for elapsed time.",
       "gridPos": {
         "x": 0,
-        "y": 120,
+        "y": 128,
         "w": 12,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -5006,6 +5309,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -5027,7 +5344,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?workspace_sync\\./",
             "renamePattern": "$1"
           }
         },
@@ -5051,12 +5368,12 @@
       "id": 61,
       "type": "bargauge",
       "title": "Slowest workspace preparation steps (avg)",
-      "description": "Ten slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it.",
+      "description": "Eight slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it.",
       "gridPos": {
         "x": 12,
-        "y": 120,
+        "y": 128,
         "w": 12,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -5070,7 +5387,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"heartbeat\\\\.prepare\\\\.workspace_.*\" } | avg_over_time(duration) by (name) | topk(10)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"heartbeat\\\\.prepare\\\\.workspace_.*\" } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -5096,12 +5413,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -5129,6 +5446,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -5150,7 +5481,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?heartbeat\\.prepare\\.workspace_/",
             "renamePattern": "$1"
           }
         },
@@ -5177,7 +5508,7 @@
       "description": "Outcome of the pristine repository-object cache lookup: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error.",
       "gridPos": {
         "x": 0,
-        "y": 128,
+        "y": 139,
         "w": 8,
         "h": 7
       },
@@ -5218,12 +5549,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -5246,6 +5577,20 @@
           "options": {
             "regex": "/^0\\.95$/",
             "renamePattern": "p95"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
           }
         },
         {
@@ -5278,7 +5623,7 @@
       "description": "Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes.",
       "gridPos": {
         "x": 8,
-        "y": 128,
+        "y": 139,
         "w": 8,
         "h": 7
       },
@@ -5353,6 +5698,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -5370,6 +5729,13 @@
             "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "$1"
           }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^sum_over_time$/",
+            "renamePattern": "bytes written"
+          }
         }
       ]
     },
@@ -5380,7 +5746,7 @@
       "description": "Bytes the native session reports as transferred to the execution target.",
       "gridPos": {
         "x": 16,
-        "y": 128,
+        "y": 139,
         "w": 8,
         "h": 7
       },
@@ -5455,6 +5821,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -5472,6 +5852,13 @@
             "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "$1"
           }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^sum_over_time$/",
+            "renamePattern": "bytes transferred"
+          }
         }
       ]
     },
@@ -5482,7 +5869,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 135,
+        "y": 146,
         "w": 24,
         "h": 1
       },
@@ -5495,9 +5882,9 @@
       "description": "Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one.",
       "gridPos": {
         "x": 0,
-        "y": 136,
+        "y": 147,
         "w": 8,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -5511,7 +5898,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"controller\\\\..*\" } | max_over_time(duration) by (name) | topk(10)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"controller\\\\..*\" } | max_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -5537,12 +5924,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -5570,6 +5957,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -5591,7 +5992,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?controller\\.startup\\./",
             "renamePattern": "$1"
           }
         },
@@ -5618,9 +6019,9 @@
       "description": "Error spans from controller.* phases per hour. Empty is good.",
       "gridPos": {
         "x": 8,
-        "y": 136,
+        "y": 147,
         "w": 8,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "prometheus",
@@ -5677,7 +6078,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?controller\\.(?:startup\\.)?/",
             "renamePattern": "$1"
           }
         },
@@ -5704,9 +6105,9 @@
       "description": "Duration of native finalization reconciliation passes. Only passes of one second or longer are recorded, so no data means every pass was fast.",
       "gridPos": {
         "x": 16,
-        "y": 136,
+        "y": 147,
         "w": 8,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -5797,6 +6198,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -5824,7 +6239,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 144,
+        "y": 158,
         "w": 24,
         "h": 1
       },
@@ -5837,7 +6252,7 @@
       "description": "Budget admission, reservation, accounting, settlement, enforcement and cancellation spans (paperclip.budgets tracer).",
       "gridPos": {
         "x": 0,
-        "y": 145,
+        "y": 159,
         "w": 8,
         "h": 8
       },
@@ -5896,7 +6311,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?budget\\./",
             "renamePattern": "$1"
           }
         },
@@ -5923,7 +6338,7 @@
       "description": "Time to acquire the company accounting lock. Rises under contention between concurrent runs of one company.",
       "gridPos": {
         "x": 8,
-        "y": 145,
+        "y": 159,
         "w": 8,
         "h": 8
       },
@@ -6016,6 +6431,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6043,7 +6472,7 @@
       "description": "Time between a pending policy's last intent or retry and its delivery (budget.enforcement.queue_delay_ms).",
       "gridPos": {
         "x": 16,
-        "y": 145,
+        "y": 159,
         "w": 8,
         "h": 8
       },
@@ -6117,6 +6546,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6144,7 +6587,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 153,
+        "y": 167,
         "w": 24,
         "h": 1
       },
@@ -6157,7 +6600,7 @@
       "description": "Server spans from the HTTP auto-instrumentation, by request method. Attribute names follow the stable OpenTelemetry semantic conventions.",
       "gridPos": {
         "x": 0,
-        "y": 154,
+        "y": 168,
         "w": 8,
         "h": 8
       },
@@ -6231,6 +6674,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6258,7 +6715,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 154,
+        "y": 168,
         "w": 8,
         "h": 8
       },
@@ -6351,6 +6808,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6378,7 +6849,7 @@
       "description": "Responses by HTTP status code. Anything 5xx also shows as an error span.",
       "gridPos": {
         "x": 16,
-        "y": 154,
+        "y": 168,
         "w": 8,
         "h": 8
       },
@@ -6452,6 +6923,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6479,9 +6964,9 @@
       "description": "The path is the request path as received, so it can contain task or agent IDs.",
       "gridPos": {
         "x": 0,
-        "y": 162,
+        "y": 176,
         "w": 16,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -6566,7 +7051,10 @@
               "url.path": "Path",
               "http.response.status_code": "Status",
               "time": "Start",
-              "spanID": "Span ID"
+              "spanID": "Span ID",
+              "Duration": "Duration",
+              "Start time": "Start",
+              "Span ID": "Span ID"
             }
           }
         }
@@ -6579,9 +7067,9 @@
       "description": "GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap.",
       "gridPos": {
         "x": 16,
-        "y": 162,
+        "y": 176,
         "w": 8,
-        "h": 8
+        "h": 11
       },
       "datasource": {
         "type": "tempo",
@@ -6595,7 +7083,7 @@
           },
           "refId": "A",
           "queryType": "traceql",
-          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"issue\\\\.read\\\\..*\" } | avg_over_time(duration) by (name) | topk(10)",
+          "query": "{ resource.service.name =~ \"${service:regex}\" && name =~ \"issue\\\\.read\\\\..*\" } | avg_over_time(duration) by (name) | topk(8)",
           "metricsQueryType": "instant",
           "limit": 50
         }
@@ -6621,12 +7109,12 @@
         "valueMode": "color",
         "namePlacement": "top",
         "sizing": "manual",
-        "minVizHeight": 26,
-        "maxVizHeight": 34,
+        "minVizHeight": 40,
+        "maxVizHeight": 48,
         "minVizWidth": 8,
         "text": {
-          "titleSize": 13,
-          "valueSize": 14
+          "titleSize": 12,
+          "valueSize": 13
         },
         "reduceOptions": {
           "calcs": [
@@ -6654,6 +7142,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6675,7 +7177,7 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
+            "regex": "/^((?:p50|p95) )?issue\\.read\\./",
             "renamePattern": "$1"
           }
         },
@@ -6702,7 +7204,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 170,
+        "y": 187,
         "w": 24,
         "h": 1
       },
@@ -6715,7 +7217,7 @@
       "description": "Eyes reactions acknowledging durable receipt of a Slack message: confirmed or failed. Failed attempts are not acknowledgement latency samples.",
       "gridPos": {
         "x": 0,
-        "y": 171,
+        "y": 188,
         "w": 8,
         "h": 7
       },
@@ -6789,6 +7291,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6816,7 +7332,7 @@
       "description": "Durable inbound receipt to provider confirmation. Excludes Slack-to-webhook transit and SDK parsing.",
       "gridPos": {
         "x": 8,
-        "y": 171,
+        "y": 188,
         "w": 8,
         "h": 7
       },
@@ -6890,6 +7406,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -6917,7 +7447,7 @@
       "description": "Action creation to transport.",
       "gridPos": {
         "x": 16,
-        "y": 171,
+        "y": 188,
         "w": 8,
         "h": 7
       },
@@ -6991,6 +7521,20 @@
         {
           "id": "renameByRegex",
           "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.5(?:0*)\\}$/",
+            "renamePattern": "p50 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^\\{name=\"([^\"]*)\", p=0\\.95\\}$/",
+            "renamePattern": "p95 $1"
+          }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
             "regex": "/^\\{p=0\\.5(?:0*), [^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "p50 $1"
           }
@@ -7008,6 +7552,13 @@
             "regex": "/^\\{[^=]+=\"([^\"]*)\"\\}$/",
             "renamePattern": "$1"
           }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^avg_over_time$/",
+            "renamePattern": "queue time"
+          }
         }
       ]
     },
@@ -7018,7 +7569,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 178,
+        "y": 195,
         "w": 24,
         "h": 1
       },
@@ -7031,7 +7582,7 @@
       "description": "The ten most frequent span names. Instrumentation spans (HTTP, authentication) usually dominate.",
       "gridPos": {
         "x": 0,
-        "y": 179,
+        "y": 196,
         "w": 12,
         "h": 8
       },
@@ -7086,29 +7637,7 @@
           "sort": "desc"
         }
       },
-      "transformations": [
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
-            "renamePattern": "$1"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/_/g",
-            "renamePattern": " "
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/\\./g",
-            "renamePattern": " > "
-          }
-        }
-      ]
+      "transformations": []
     },
     {
       "id": 85,
@@ -7117,7 +7646,7 @@
       "description": "Error spans by name per hour; empty is good.",
       "gridPos": {
         "x": 12,
-        "y": 179,
+        "y": 196,
         "w": 12,
         "h": 8
       },
@@ -7172,29 +7701,7 @@
           "sort": "desc"
         }
       },
-      "transformations": [
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/",
-            "renamePattern": "$1"
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/_/g",
-            "renamePattern": " "
-          }
-        },
-        {
-          "id": "renameByRegex",
-          "options": {
-            "regex": "/\\./g",
-            "renamePattern": " > "
-          }
-        }
-      ]
+      "transformations": []
     },
     {
       "id": 86,
@@ -7203,7 +7710,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 187,
+        "y": 204,
         "w": 24,
         "h": 1
       },
@@ -7216,7 +7723,7 @@
       "description": "Spans reaching Tempo from the selected instance(s). No data means Paperclip is not exporting: check OTEL_EXPORTER_OTLP_ENDPOINT and the server log for a package diagnostic.",
       "gridPos": {
         "x": 0,
-        "y": 188,
+        "y": 205,
         "w": 6,
         "h": 4
       },
@@ -7270,7 +7777,7 @@
       "description": "Distinct service names (OTEL_SERVICE_NAME) with spans in the range.",
       "gridPos": {
         "x": 6,
-        "y": 188,
+        "y": 205,
         "w": 6,
         "h": 4
       },
@@ -7324,7 +7831,7 @@
       "description": "Span ingest rate per service.",
       "gridPos": {
         "x": 12,
-        "y": 188,
+        "y": 205,
         "w": 12,
         "h": 4
       },
