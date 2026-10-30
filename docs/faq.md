@@ -33,9 +33,16 @@ under *Dashboard settings > Variables* if you have several.
 
 ## Paperclip logs `the @opentelemetry/* packages are not installed`
 
-Paperclip loads its OpenTelemetry SDK only when you install it, at the exact versions in its `server/package.json`.
-Build the image with `./install.sh --build-image` (or the `paperclip-otel/Containerfile`), run Paperclip from it, and
-restart. If it names a version mismatch, bump the versions in the Containerfile to the ones the message expects.
+Paperclip loads its OpenTelemetry SDK only when you install it, at the exact versions in its `server/package.json`. In a
+container, build the image with `./install.sh --build-image <your image>` (the Containerfile reads the versions from that
+image, so every Paperclip version works) and run Paperclip from it. On a host, `python3 paperclip-otel/peer-packages.py
+<checkout>` prints the exact `pnpm add` line. If the message names a version mismatch, you installed other versions by
+hand: reinstall the ones it expects.
+
+## I already run Paperclip. Do I have to reinstall it?
+
+No. Add the packages (see *Already running Paperclip?* in the README), three environment variables, and a collector it can
+reach, then restart it. Your data, agents and configuration are untouched.
 
 ## Why are all the *Native runner* panels empty?
 

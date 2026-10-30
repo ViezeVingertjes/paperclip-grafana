@@ -1,27 +1,42 @@
-# Adds Paperclip's optional OpenTelemetry packages to an existing Paperclip image.
+# Adds Paperclip's optional OpenTelemetry packages to ANY existing Paperclip image, at exactly the versions that image's
+# server declares as peerDependencies (Paperclip refuses any other version and then exports nothing).
 #
-#   podman build -t paperclip-otel -f paperclip-otel/Containerfile --build-arg BASE=paperclip-local paperclip-otel
+#   podman build -t paperclip-otel -f paperclip-otel/Containerfile --build-arg BASE=<your paperclip image> paperclip-otel
+#   docker build -t paperclip-otel -f paperclip-otel/Containerfile --build-arg BASE=<your paperclip image> paperclip-otel
 #
-# Paperclip loads these at startup only when OTEL_EXPORTER_OTLP_ENDPOINT is set, and refuses any other version than the
-# ones its server/package.json declares as peerDependencies ("exact peer versions"). Keep the versions below in step with
-# that file (docs/upgrading.md). They sit in /opt/paperclip-otel and are linked into /app/node_modules, so the server's
-# plain `import("@opentelemetry/...")` finds them and pnpm's own tree stays untouched.
+# Build args:  BASE      the Paperclip image to extend (default paperclip-local)
+#              PROTOCOL  the OTLP protocol you will set in OTEL_EXPORTER_OTLP_PROTOCOL: grpc (default), http/protobuf, http/json
+#              APP_DIR   where Paperclip lives in the image (default /app; the server is APP_DIR/server)
+#
+# The packages sit in /opt/paperclip-otel and are linked into APP_DIR/node_modules, so the server's plain
+# `import("@opentelemetry/...")` finds them and pnpm's own tree stays untouched.
 ARG BASE=paperclip-local
 FROM ${BASE}
+ARG PROTOCOL=grpc
+ARG APP_DIR=/app
 
 USER root
+# Paperclip's Dockerfile ends with a "cloud" stage that adds a nested server/node_modules/.pnpm and breaks the native
+# Runner (admission_installation). Say so at build time; the default image is the "production" target.
+RUN if [ -d "${APP_DIR}/server/node_modules/.pnpm" ]; then echo "WARNING: base image is Paperclip's cloud stage; native runner runs will fail. Rebuild it with --target production." >&2; fi
 RUN set -eux; \
-    mkdir -p /opt/paperclip-otel /app/node_modules/@opentelemetry; \
+    mkdir -p /opt/paperclip-otel "${APP_DIR}/node_modules/@opentelemetry"; \
     cd /opt/paperclip-otel; \
     npm init -y >/dev/null; \
-    npm install --omit=dev --no-audit --no-fund --save-exact \
-      @opentelemetry/sdk-node@0.221.0 \
-      @opentelemetry/auto-instrumentations-node@0.79.0 \
-      @opentelemetry/resources@2.10.0 \
-      @opentelemetry/semantic-conventions@1.43.0 \
-      @opentelemetry/exporter-trace-otlp-grpc@0.221.0; \
-    for p in sdk-node auto-instrumentations-node resources semantic-conventions exporter-trace-otlp-grpc; do \
-      ln -sfn "/opt/paperclip-otel/node_modules/@opentelemetry/$p" "/app/node_modules/@opentelemetry/$p"; \
+    PKGS="$(APP_DIR="${APP_DIR}" PROTOCOL="${PROTOCOL}" node -e ' \
+      const peers = require(process.env.APP_DIR + "/server/package.json").peerDependencies || {}; \
+      const exporter = { "grpc": "grpc", "http/protobuf": "proto", "http/json": "http" }[process.env.PROTOCOL]; \
+      if (!exporter) { console.error("PROTOCOL must be grpc, http/protobuf or http/json"); process.exit(1); } \
+      const wanted = ["sdk-node", "auto-instrumentations-node", "resources", "semantic-conventions", "exporter-trace-otlp-" + exporter] \
+        .map((n) => "@opentelemetry/" + n); \
+      const missing = wanted.filter((n) => !peers[n]); \
+      if (missing.length) { console.error("this Paperclip does not declare: " + missing.join(", ")); process.exit(1); } \
+      console.log(wanted.map((n) => n + "@" + peers[n]).join(" "));')"; \
+    echo "installing: ${PKGS}"; \
+    npm install --omit=dev --no-audit --no-fund --save-exact ${PKGS}; \
+    for spec in ${PKGS}; do \
+      name="${spec%@*}"; \
+      ln -sfn "/opt/paperclip-otel/node_modules/${name}" "${APP_DIR}/node_modules/${name}"; \
     done
 
 # The base image starts as root, drops to the node user and runs its own entrypoint; nothing else changes.

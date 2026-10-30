@@ -19,19 +19,28 @@ Options:
   --paperclip-env FILE   Add the OpenTelemetry variables to a Paperclip env file (a backup is made first)
   --build-image [BASE]   Build the "paperclip-otel" image: the Paperclip image BASE (default paperclip-local) plus the
                          OpenTelemetry packages Paperclip needs before it will export anything
+  --join-network         For a stack that is already installed (by this script or another setup): add the paperclip-net
+                         network to its otel-lgtm unit and restart it. A running rootless Podman container cannot be
+                         attached to a bridge network, so Paperclip could not otherwise reach http://otel-lgtm:4317
+  --import-dashboard [URL]
+                         Import the dashboard into the Grafana at URL (default http://127.0.0.1:3000), for example one that
+                         this script did not install. Set GRAFANA_PASSWORD if anonymous editing is off
   --no-boot              Do not enable lingering (the stack then starts when you log in instead of at boot)
   --uninstall            Stop and remove the services (stored data is kept in ~/.local/share/otel-lgtm)
   -h, --help             Show this help
 
-Options can be combined, and the script can be re-run safely.
+Options can be combined, and the script can be re-run safely. PAPERCLIP_OTEL_PROTOCOL (grpc, http/protobuf or http/json)
+chooses the exporter that --build-image installs; it must match OTEL_EXPORTER_OTLP_PROTOCOL.
 USAGE
 }
 
-env_file=""; build_image=0; base_image="paperclip-local"; boot=1; uninstall=0
+env_file=""; build_image=0; base_image="paperclip-local"; boot=1; uninstall=0; join_network=0; import_url=""
 while (( $# )); do
   case "$1" in
     --paperclip-env) env_file="${2:?--paperclip-env needs a file}"; shift ;;
     --build-image) build_image=1; if [[ "${2:-}" != "" && "${2:-}" != --* ]]; then base_image="$2"; shift; fi ;;
+    --join-network) join_network=1 ;;
+    --import-dashboard) import_url="http://127.0.0.1:3000"; if [[ "${2:-}" != "" && "${2:-}" != --* ]]; then import_url="$2"; shift; fi ;;
     --no-boot) boot=0 ;;
     --uninstall) uninstall=1 ;;
     -h|--help) usage; exit 0 ;;
@@ -46,6 +55,41 @@ if (( uninstall )); then
   systemctl --user daemon-reload
   echo "Removed the services. Data is kept in $data_dir (delete it to wipe all stored telemetry)."
   echo "Paperclip's env file is untouched; run  python3 paperclip-otel/apply-paperclip-otel.py FILE --remove  to undo it."
+  exit 0
+fi
+
+# ---- standalone actions for a stack that already exists ----------------------------------------------------------
+if [[ -n "$import_url" ]]; then
+  command -v python3 >/dev/null || { echo "python3 is required" >&2; exit 1; }
+  [[ -f "$here/dashboards/paperclip.json" ]] || python3 "$here/tools/gen_dashboard.py" > "$here/dashboards/paperclip.json"
+  GRAFANA_URL="$import_url" python3 "$here/tools/import_dashboard.py"
+  exit 0
+fi
+
+if (( join_network )); then
+  unit="$quadlet_dir/otel-lgtm.container"
+  [[ -f "$unit" ]] || { echo "No installed otel-lgtm unit at $unit. Run ./install.sh without --join-network to install the stack." >&2; exit 1; }
+  cp "$here/quadlet/paperclip-net.network" "$quadlet_dir/paperclip-net.network"
+  if grep -q '^Network=paperclip-net.network' "$unit" && podman inspect otel-lgtm --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' 2>/dev/null | grep -q paperclip-net; then
+    echo "otel-lgtm already joins paperclip-net; nothing to do."
+    exit 0
+  fi
+  if ! grep -q '^Network=paperclip-net.network' "$unit"; then
+    cp -p "$unit" "$unit.bak-pre-paperclip"    # the original is kept next to it
+    sed -i '/^ContainerName=otel-lgtm$/a Network=paperclip-net.network' "$unit"
+    grep -q '^Network=paperclip-net.network' "$unit" || { echo "Could not add the network to $unit; add 'Network=paperclip-net.network' to its [Container] section by hand." >&2; exit 1; }
+  fi
+  systemctl --user daemon-reload
+  systemctl --user restart otel-lgtm.service
+  echo -n "Waiting for Grafana"
+  for _ in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3000/api/health && break; echo -n "."; sleep 2; done
+  echo
+  if podman inspect otel-lgtm --format '{{range $k,$v := .NetworkSettings.Networks}}{{$k}} {{end}}' | grep -q paperclip-net; then
+    echo "otel-lgtm is on paperclip-net: Paperclip can export to http://otel-lgtm:4317."
+  else
+    echo "otel-lgtm is not on paperclip-net; check: systemctl --user status otel-lgtm.service" >&2
+    exit 1
+  fi
   exit 0
 fi
 
@@ -104,7 +148,14 @@ fi
 
 # ---- optional parts ---------------------------------------------------------------------------------------------
 if (( build_image )); then
-  podman build -t paperclip-otel -f "$here/paperclip-otel/Containerfile" --build-arg "BASE=$base_image" "$here/paperclip-otel"
+  # Paperclip's Dockerfile ends with a "cloud" stage that adds a nested /app/server/node_modules/.pnpm, which breaks the
+  # native Runner's provider-package lookup (admission_installation). The default image is the "production" target.
+  if podman run --rm --entrypoint sh "$base_image" -c 'test -d /app/server/node_modules/.pnpm' 2>/dev/null; then
+    echo "WARNING: $base_image has /app/server/node_modules/.pnpm, so it is Paperclip's 'cloud' stage." >&2
+    echo "         Native runner runs will fail with admission_installation. Rebuild it with: podman build --target production ..." >&2
+  fi
+  podman build -t paperclip-otel -f "$here/paperclip-otel/Containerfile" --build-arg "BASE=$base_image" \
+    --build-arg "PROTOCOL=${PAPERCLIP_OTEL_PROTOCOL:-grpc}" "$here/paperclip-otel"
   echo "Built the paperclip-otel image from $base_image. Run Paperclip from it, on the paperclip-net network (see README)."
 fi
 

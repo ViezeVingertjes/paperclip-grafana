@@ -29,21 +29,6 @@ A local Grafana dashboard for [Paperclip](https://github.com/paperclipai/papercl
 - **Several instances.** Give each Paperclip an `OTEL_SERVICE_NAME` and filter or compare them with the *Instance* variable.
 - **Easy to read.** Short names instead of raw span names, rates instead of raw counts so charts read the same at 15 minutes or 7 days, and a clear "none in this range" when there is nothing to show.
 
-## Paperclip only exports traces. Where do the numbers come from?
-
-From the traces. Paperclip's OpenTelemetry support exports **spans and nothing else** (no metrics, no logs), so this
-dashboard derives every number from them, in two ways that each fix the other's limit:
-
-| | Span metrics (PromQL) | TraceQL metrics (Tempo) |
-|---|---|---|
-| **What** | Tempo counts and times spans into Prometheus series | Tempo computes `rate()`, `count_over_time()`, `quantile_over_time(duration, ...)` from stored spans on demand |
-| **Used for** | Rates, error ratios, the health tiles ("vs usual"), alert rules | Every percentile of a run, turn or startup, and every breakdown by a Paperclip attribute (provider, tool, cache outcome, route ...) |
-| **Limit** | Latency histogram stops at **16.4 s**; no span attributes | Only recent data; heavier to compute |
-
-Agent runs last minutes, so percentiles can never come from the span-metric histogram. The health tiles use *means*
-(sum / count, exact at any length) because "now divided by usual" needs PromQL. Details in
-[`docs/telemetry-reference.md`](docs/telemetry-reference.md).
-
 ## Quick start
 
 You need Linux with systemd, [Podman](https://podman.io/) 4.4 or newer, `curl` and `python3`, and a Paperclip image
@@ -80,6 +65,65 @@ is not running from the `paperclip-otel` image.
 It is safe to run again. See `./install.sh --help`.
 </details>
 
+## Already running Paperclip?
+
+Nothing here needs a fresh Paperclip. You add three things to the one you have: the OpenTelemetry packages (Paperclip only
+imports its SDK when they are installed, and only at the exact versions its `server/package.json` declares as
+`peerDependencies`), three environment variables, and a collector that Paperclip can reach. Pick your setup:
+
+<details>
+<summary><b>Paperclip in a container (Podman or Docker)</b></summary>
+
+```bash
+./install.sh --build-image <your paperclip image>      # your image plus the packages, at the versions that image declares
+./install.sh --paperclip-env /path/to/paperclip.env    # adds the three variables (or set them yourself, see below)
+```
+
+`paperclip-otel/Containerfile` reads the versions from *your* image, so any Paperclip version works, and builds with
+`docker build` too (`PAPERCLIP_OTEL_PROTOCOL` or `--build-arg PROTOCOL=http/protobuf` picks another exporter). Run the new
+`paperclip-otel` image instead of yours with these variables, on the same Podman network as the stack:
+
+```text
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-lgtm:4317
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_SERVICE_NAME=paperclip
+```
+
+For a compose file, [`paperclip-otel/compose.override.example.yml`](paperclip-otel/compose.override.example.yml) is the whole
+change. Restart Paperclip: the settings are read at startup.
+</details>
+
+<details>
+<summary><b>Paperclip on the host (git checkout, <code>npx</code> or a package install)</b></summary>
+
+```bash
+python3 paperclip-otel/peer-packages.py /path/to/paperclip     # prints the exact `pnpm add ...` line for YOUR version
+python3 paperclip-otel/apply-paperclip-otel.py /path/to/paperclip.env --endpoint http://127.0.0.1:4317
+```
+
+Run the printed `pnpm add` in the Paperclip checkout, load the env file the way you already start Paperclip, and restart it.
+</details>
+
+<details>
+<summary><b>Your own Grafana, Tempo and Prometheus (or a collector you already run)</b></summary>
+
+Point `OTEL_EXPORTER_OTLP_ENDPOINT` at your collector, then `./install.sh --import-dashboard http://your-grafana:3000`
+(or import `dashboards/paperclip.json` in the UI). The dashboard needs a Prometheus and a Tempo datasource, with Tempo's
+**metrics generator** (span metrics) and **TraceQL metrics** switched on, as in `grafana/otel-lgtm`. If you already run the
+`otel-lgtm` stack from another setup, `./install.sh --join-network` puts it on the network Paperclip's container uses.
+See [Using your own Grafana](#using-your-own-grafana).
+</details>
+
+**Check it works.** Paperclip logs `[paperclip] OpenTelemetry service.version=<commit>` at startup; a line saying the
+`@opentelemetry/*` packages are missing or at the wrong version means it is not using them. In Grafana the
+*Telemetry pipeline* row shows spans per minute within a minute of the first request.
+
+**What fills in depends on your agents.** Every adapter (`claude_local`, `codex_local`, `paperclip_runner`, ...) fills the
+Health, Runs, Run preparation, Execution, Workspace, Budget and API rows. The *Native runner* rows need `paperclip_runner`
+agents, which also need a Claude credential the runner accepts and an image built from Paperclip's `production` target
+(see [Troubleshooting](#troubleshooting)). Your own `OTEL_SERVICE_NAME` is fine: the *Instance* variable lists whatever
+exports Paperclip spans.
+
 ## How it works
 
 ```mermaid
@@ -98,14 +142,20 @@ Paperclip sends **spans**: a trace per agent run (preparation, Runner startup, a
 server's preparation and workspace phases, controller recovery, budget checks, and the HTTP and database spans from the
 auto-instrumentation. Tempo stores them and generates span metrics; Grafana queries both.
 
-## Paperclip needs its OpenTelemetry packages
+### Paperclip only exports traces, so the numbers are derived
 
-Paperclip only imports its OpenTelemetry SDK when you install it, and only at the exact versions in its
-`server/package.json`. [`paperclip-otel/Containerfile`](paperclip-otel/Containerfile) adds them to an existing Paperclip
-image (`./install.sh --build-image`). If you run Paperclip another way, install the same packages next to the server
-(`pnpm add @opentelemetry/sdk-node@0.221.0 ...`, see Paperclip's `doc/observability.md`) and set the variables from
-[`paperclip-otel/paperclip-telemetry-env.json`](paperclip-otel/paperclip-telemetry-env.json). With Paperclip on the host,
-use `--endpoint http://127.0.0.1:4317`.
+From the traces. Paperclip's OpenTelemetry support exports **spans and nothing else** (no metrics, no logs), so this
+dashboard derives every number from them, in two ways that each fix the other's limit:
+
+| | Span metrics (PromQL) | TraceQL metrics (Tempo) |
+|---|---|---|
+| **What** | Tempo counts and times spans into Prometheus series | Tempo computes `rate()`, `count_over_time()`, `quantile_over_time(duration, ...)` from stored spans on demand |
+| **Used for** | Rates, error ratios, the health tiles ("vs usual"), alert rules | Every percentile of a run, turn or startup, and every breakdown by a Paperclip attribute (provider, tool, cache outcome, route ...) |
+| **Limit** | Latency histogram stops at **16.4 s**; no span attributes | Only recent data; heavier to compute |
+
+Agent runs last minutes, so percentiles can never come from the span-metric histogram. The health tiles use *means*
+(sum / count, exact at any length) because "now divided by usual" needs PromQL. Details in
+[`docs/telemetry-reference.md`](docs/telemetry-reference.md).
 
 ## How the colours work
 
@@ -213,7 +263,7 @@ Data lives in `~/.local/share/otel-lgtm` (`docker compose down -v` for the compo
 | `tools/import_dashboard.py` | Imports the dashboard into an existing Grafana |
 | `tools/send_sample_telemetry.py` | Pushes Paperclip-shaped sample traces, for CI only |
 | `provisioning/`, `quadlet/` | Grafana dashboard provisioning, and the Podman service and network templates |
-| `paperclip-otel/` | The Containerfile that adds Paperclip's OpenTelemetry packages, the export variables and the script that merges them into an env file |
+| `paperclip-otel/` | The Containerfile that adds Paperclip's OpenTelemetry packages (versions read from your image), `peer-packages.py` for host installs, the export variables, the script that merges them into an env file, and a compose override example |
 | `tests/` | Unit tests (`python3 -m unittest discover -s tests -t .`) |
 | `docs/` | [Telemetry reference](docs/telemetry-reference.md), [FAQ](docs/faq.md), [upgrade notes](docs/upgrading.md) |
 | `examples/alerting/` | Grafana alert rule examples |

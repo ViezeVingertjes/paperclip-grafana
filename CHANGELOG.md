@@ -5,6 +5,22 @@ the project uses [Semantic Versioning](https://semver.org/). Upgrade notes are i
 
 ## [Unreleased]
 
+### Added
+- `paperclip-otel/Containerfile` now reads the exact OpenTelemetry versions from the Paperclip image it extends, so it works
+  for any Paperclip version, and takes a `PROTOCOL` build argument (`grpc`, `http/protobuf`, `http/json`).
+- `paperclip-otel/peer-packages.py` prints the exact `pnpm add` line and variables for a Paperclip checkout or host install.
+- `paperclip-otel/compose.override.example.yml` for existing compose setups.
+- `install.sh --join-network` (put an already installed `otel-lgtm` on the `paperclip-net` network, which a running rootless
+  Podman container cannot be attached to) and `--import-dashboard [URL]` (import into an existing Grafana).
+- README section *Already running Paperclip?*, and a warning at build time when the base image is Paperclip's `cloud` stage.
+
+### Changed
+- The dashboard is built on what real Paperclip emits: runs are `task.execution_attempt` (every adapter), with new
+  *Run preparation* and *Execution and completion* rows; the *Native runner* rows need `paperclip_runner` agents.
+- HTTP panels use the stable semantic-convention attributes Paperclip exports; the PostgreSQL panels are gone because
+  Paperclip exports no PostgreSQL client spans.
+- The *Instance* variable's "All" means the services that emit Paperclip spans, not every service in Tempo.
+
 ## [1.0.0] - 2026-10-30
 
 First release: the Paperclip dashboard (health, overview, runs, startup and first token, agent turns and tools,
