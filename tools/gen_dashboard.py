@@ -100,6 +100,14 @@ def stat(title, expr, unit, x, y, w=4, h=4, ds=PROM, desc="", decimals=None, ste
     if steps:
         d["color"] = {"mode": "thresholds"}
         d["thresholds"] = {"mode": "absolute", "steps": steps}
+        if ds is PROM and nv != "0":
+            # An empty result would be coloured by the first threshold (red or green), which misreads as good or bad.
+            # Return -1 instead and map it to grey text; no ratio, share or count here is ever negative.
+            p["targets"][0]["expr"] = f"({expr}) or vector(-1)"
+            grey = {"text": nv, "color": "text"}
+            d["mappings"] = d["mappings"] + [
+                {"type": "range", "options": {"from": -1.5, "to": -0.5, "result": {**grey, "index": 98}}},
+                {"type": "special", "options": {"match": "null+nan", "result": {**grey, "index": 99}}}]   # 0 / 0 is NaN, not empty
     p["fieldConfig"] = {"defaults": d, "overrides": []}
     p["options"] = {"reduceOptions": {"calcs": ["lastNotNull"], "fields": "", "values": False},
                     "colorMode": "background" if bg else "value", "graphMode": "none", "textMode": "value", "justifyMode": "center"}
@@ -199,8 +207,8 @@ def calls(span, err=False, regex=False):
 
 
 def n(span, rng, err=False, regex=False):
-    """Number of spans in a range (0 when there are none, so a ratio never goes empty because of a quiet week)."""
-    return f"(sum(increase({calls(span, err, regex)}[{rng}])) or vector(0))"
+    """Number of spans in a range, rounded because increase() extrapolates to the window edges (0 when there are none, so a ratio never goes empty)."""
+    return f"(round(sum(increase({calls(span, err, regex)}[{rng}]))) or vector(0))"
 
 
 def mean_s(span, rng):
@@ -275,7 +283,7 @@ def srv_sel(err=False):
 
 
 def srv_n(rng, err=False):
-    return f"(sum(increase(traces_spanmetrics_calls_total{srv_sel(err)}[{rng}])) or vector(0))"
+    return f"(round(sum(increase(traces_spanmetrics_calls_total{srv_sel(err)}[{rng}]))) or vector(0))"
 
 
 def srv_mean(rng):
@@ -350,7 +358,7 @@ panels += [
                   {"matcher": {"id": "byName", "options": "runs"}, "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]}]),
     ts("Run duration", [quant(ATTEMPT)], "s", 8, y, 8, 8, ds=TEMPO,
        desc="Duration of one executor invocation (admission reads, preparation, provider dispatch and inline settlement). Deferred work such as workspace finalization is separate. p95 is dashed."),
-    ts("Concurrent runs (average)", [(f"sum(rate(traces_spanmetrics_latency_sum{sel(ATTEMPT)}[{RI}]))", "runs")], "short", 16, y, 8, 8,
+    ts("Concurrent runs (average)", [(f"sum(rate(traces_spanmetrics_latency_sum{sel(ATTEMPT)}[{RI}]))", "runs")], "none", 16, y, 8, 8,
        desc="Average number of runs in flight (seconds of run time per second). Sudden growth means runs are queueing or getting longer."),
 ]
 y += 8
@@ -386,14 +394,14 @@ PREP_MAIN = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace|instru
 PREP_DOMINANT = "heartbeat\\\\.prepare\\\\.(execution_configuration|workspace)"
 SKILLS = "skills\\\\..*"
 panels += [
-    bargauge("Where run preparation time goes (avg)", f'{tq(PREP, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 0, y, 8, 8, ds=TEMPO,
+    bargauge("Where run preparation time goes (avg)", f'{tq(PREP, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 0, y, 8, 9, ds=TEMPO,
              desc="Mean duration of each top-level preparation phase (heartbeat.prepare.*). Phases run before the provider starts; workspace and configuration contain sub-steps, shown separately."),
-    bargauge("Where configuration time goes (avg)", f'{tq(PREP_CONFIG, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 8, y, 8, 8, ds=TEMPO,
+    bargauge("Where configuration time goes (avg)", f'{tq(PREP_CONFIG, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 8, y, 8, 9, ds=TEMPO,
              desc="Sub-steps of heartbeat.prepare.execution_configuration: skills, secrets, connectors, GitHub and agent identity. They are inside the configuration duration; do not add them to it."),
-    bargauge("Where skills preparation goes (avg)", f'{tq(SKILLS, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 16, y, 8, 8, ds=TEMPO,
+    bargauge("Where skills preparation goes (avg)", f'{tq(SKILLS, regex=True)} | avg_over_time(duration) by (name) | topk(12)', "s", 16, y, 8, 9, ds=TEMPO,
              desc="Skill inventory, version read, materialization and verification (skills.*). These sit inside configuration_skills."),
 ]
-y += 8
+y += 9
 panels += [
     ts("Preparation over time (avg by phase)", [f'{tq(PREP_MAIN, regex=True)} | avg_over_time(duration) by (name)'],
        "s", 0, y, 12, 8, ds=TEMPO, stack=True, desc="The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower."),
@@ -602,15 +610,16 @@ def rn(*pairs):
 
 # TraceQL metrics name quantile series {p=0.95, span.x="v"}; show them as "p95 v" (and plain {p=0.95} as "p95").
 QUANTILES = rn(
-    (r"/^\{p=0\.5(?:0*)\}$/", "p50"), (r"/^\{p=0\.95\}$/", "p95"),
+    (r"/^0\.5(?:0*)$/", "p50"), (r"/^0\.95$/", "p95"),
     (r'/^\{p=0\.5(?:0*), [^=]+="([^"]*)"\}$/', "p50 $1"), (r'/^\{p=0\.95, [^=]+="([^"]*)"\}$/', "p95 $1"),
     (r'/^\{[^=]+="([^"]*)"\}$/', "$1"),
 )
 SPAN = rn(("/^(?:task|runner|agent|heartbeat\\.prepare|heartbeat|native|environment|skills|workspace_sync|workspace|controller|budget|issue|execution|completion)\\.(.*)/", "$1"),
           ("/_/g", " "), ("/\\./g", " > "))
-RENAMES = {title: SPAN for title in (
+RENAMES = {"Where configuration time goes (avg)": SPAN + rn(("/^configuration /", ""))}
+RENAMES |= {title: SPAN for title in (
     "Where startup time goes (avg)", "Where native preparation time goes (avg)", "Where run preparation time goes (avg)",
-    "Where configuration time goes (avg)", "Where skills preparation goes (avg)", "Preparation over time (avg by phase)",
+    "Where skills preparation goes (avg)", "Preparation over time (avg by phase)",
     "Preparation phase p95", "Execution phases (avg)", "Completion phases (avg)", "Execution and completion over time (avg)",
     "Slowest workspace preparation steps (avg)", "Workspace sync: where time goes (avg)", "Controller startup phases (slowest)",
     "Task detail read phases (avg)", "Turn latency to first activity (p95)", "Controller span errors per hour",

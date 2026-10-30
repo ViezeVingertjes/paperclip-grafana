@@ -32,12 +32,14 @@ def call(method, url, body=None):
 
 dashboard = json.load(open(path))
 dashboard["id"] = None
-FOLDER = "paperclip"
-status, _ = call("GET", f"/api/folders/{FOLDER}")
-if status == 404:
-    status, body = call("POST", "/api/folders", {"uid": FOLDER, "title": "Paperclip"})
+# The folder is found by its title (provisioning creates it the same way), and Grafana assigns its uid.
+status, folders = call("GET", "/api/folders")
+folder = next((f for f in folders if f.get("title") == "Paperclip"), None) if status < 300 else None
+if folder is None:
+    status, folder = call("POST", "/api/folders", {"title": "Paperclip"})
     if status >= 300:
-        sys.exit(f"could not create the Paperclip folder: HTTP {status} {body.get('message')}")
+        sys.exit(f"could not create the Paperclip folder: HTTP {status} {folder.get('message')}")
+FOLDER = folder["uid"]
 status, body = call("POST", "/api/dashboards/db", {"dashboard": dashboard, "folderUid": FOLDER, "overwrite": True, "message": "tools/import_dashboard.py"})
 if status >= 300:
     sys.exit(f"import failed: HTTP {status} {body.get('message')}")

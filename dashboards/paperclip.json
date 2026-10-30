@@ -106,7 +106,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range])) or vector(0))",
+          "expr": "(round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -172,7 +172,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(((sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range])) or vector(0)) + 1) / ((sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) or vector(0)) + 2)) / (((sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[7d])) or vector(0)) + 1) / ((sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])) or vector(0)) + 2))",
+          "expr": "((((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0)) + 1) / ((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) or vector(0)) + 2)) / (((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[7d]))) or vector(0)) + 1) / ((round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d]))) or vector(0)) + 2))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -186,7 +186,31 @@
             "mode": "thresholds"
           },
           "noValue": "no data",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 2,
           "thresholds": {
             "mode": "absolute",
@@ -243,7 +267,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[$__range])) or vector(0))",
+          "expr": "(round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -309,7 +333,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"controller\\\\..*\",status_code=\"STATUS_CODE_ERROR\"}[$__range])) or vector(0))",
+          "expr": "(round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"controller\\\\..*\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -375,7 +399,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])))",
+          "expr": "((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"task.execution_attempt\"}[7d])))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -389,7 +413,31 @@
             "mode": "thresholds"
           },
           "noValue": "no data",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 2,
           "thresholds": {
             "mode": "absolute",
@@ -446,7 +494,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])))",
+          "expr": "((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.execution_configuration\"}[7d])))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -460,7 +508,31 @@
             "mode": "thresholds"
           },
           "noValue": "no data",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 2,
           "thresholds": {
             "mode": "absolute",
@@ -517,7 +589,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])))",
+          "expr": "((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_name=\"heartbeat.prepare.workspace\"}[7d])))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -531,7 +603,31 @@
             "mode": "thresholds"
           },
           "noValue": "no data",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 2,
           "thresholds": {
             "mode": "absolute",
@@ -588,7 +684,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[7d])))",
+          "expr": "((sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[$__range])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[$__range]))) / (sum(increase(traces_spanmetrics_latency_sum{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[7d])) / sum(increase(traces_spanmetrics_latency_count{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[7d])))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -602,7 +698,31 @@
             "mode": "thresholds"
           },
           "noValue": "no data",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 2,
           "thresholds": {
             "mode": "absolute",
@@ -672,7 +792,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) or vector(0))",
+          "expr": "(round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -726,7 +846,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range])) or vector(0)) / (sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range])) or vector(0))",
+          "expr": "(1 - (round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=~\"task\\\\.(execution_attempt|provider_session)\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0)) / (round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.execution_attempt\"}[$__range]))) or vector(0))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -740,7 +860,31 @@
             "mode": "thresholds"
           },
           "noValue": "no data",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no data",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
@@ -907,7 +1051,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[$__range])) or vector(0))",
+          "expr": "(round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_kind=\"SPAN_KIND_SERVER\"}[$__range]))) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -961,7 +1105,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"budget.admission.evaluate\"}[$__range])) or vector(0))",
+          "expr": "(round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"budget.admission.evaluate\"}[$__range]))) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -1180,7 +1324,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.provider_session\"}[$__range])) or vector(0))",
+          "expr": "(round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.provider_session\"}[$__range]))) or vector(0))",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -1234,7 +1378,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.provider_session\",status_code=\"STATUS_CODE_ERROR\"}[$__range])) or vector(0)) / (sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.provider_session\"}[$__range])) or vector(0))",
+          "expr": "(1 - (round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.provider_session\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0)) / (round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"task.provider_session\"}[$__range]))) or vector(0))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -1248,7 +1392,31 @@
             "mode": "thresholds"
           },
           "noValue": "no native runs",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no native runs",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no native runs",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
@@ -1305,7 +1473,7 @@
             "type": "prometheus",
             "uid": "${ds_prometheus}"
           },
-          "expr": "1 - (sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"tool.execute\",status_code=\"STATUS_CODE_ERROR\"}[$__range])) or vector(0)) / (sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"tool.execute\"}[$__range])) or vector(0))",
+          "expr": "(1 - (round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"tool.execute\",status_code=\"STATUS_CODE_ERROR\"}[$__range]))) or vector(0)) / (round(sum(increase(traces_spanmetrics_calls_total{service=~\"$service\",span_name=\"tool.execute\"}[$__range]))) or vector(0))) or vector(-1)",
           "legendFormat": "",
           "refId": "A",
           "instant": true,
@@ -1319,7 +1487,31 @@
             "mode": "thresholds"
           },
           "noValue": "no native tool calls",
-          "mappings": [],
+          "mappings": [
+            {
+              "type": "range",
+              "options": {
+                "from": -1.5,
+                "to": -0.5,
+                "result": {
+                  "text": "no native tool calls",
+                  "color": "text",
+                  "index": 98
+                }
+              }
+            },
+            {
+              "type": "special",
+              "options": {
+                "match": "null+nan",
+                "result": {
+                  "text": "no native tool calls",
+                  "color": "text",
+                  "index": 99
+                }
+              }
+            }
+          ],
           "decimals": 1,
           "thresholds": {
             "mode": "absolute",
@@ -1560,14 +1752,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -1625,7 +1817,7 @@
       "interval": "1m",
       "fieldConfig": {
         "defaults": {
-          "unit": "si:",
+          "unit": "none",
           "custom": {
             "drawStyle": "line",
             "lineWidth": 2,
@@ -1640,7 +1832,8 @@
             }
           },
           "noValue": "none in this range",
-          "min": 0
+          "min": 0,
+          "decimals": 2
         },
         "overrides": []
       },
@@ -1942,7 +2135,7 @@
         "x": 0,
         "y": 44,
         "w": 8,
-        "h": 8
+        "h": 9
       },
       "datasource": {
         "type": "tempo",
@@ -2001,14 +2194,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2065,7 +2258,7 @@
         "x": 8,
         "y": 44,
         "w": 8,
-        "h": 8
+        "h": 9
       },
       "datasource": {
         "type": "tempo",
@@ -2124,14 +2317,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2176,6 +2369,13 @@
             "regex": "/\\./g",
             "renamePattern": " > "
           }
+        },
+        {
+          "id": "renameByRegex",
+          "options": {
+            "regex": "/^configuration /",
+            "renamePattern": ""
+          }
         }
       ]
     },
@@ -2188,7 +2388,7 @@
         "x": 16,
         "y": 44,
         "w": 8,
-        "h": 8
+        "h": 9
       },
       "datasource": {
         "type": "tempo",
@@ -2247,14 +2447,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2309,7 +2509,7 @@
       "description": "The five heaviest preparation phases per run, averaged per step. A growing layer is the phase that got slower.",
       "gridPos": {
         "x": 0,
-        "y": 52,
+        "y": 53,
         "w": 12,
         "h": 8
       },
@@ -2369,14 +2569,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2431,7 +2631,7 @@
       "description": "95th percentile of the two phases that usually dominate preparation.",
       "gridPos": {
         "x": 12,
-        "y": 52,
+        "y": 53,
         "w": 12,
         "h": 8
       },
@@ -2510,14 +2710,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2572,7 +2772,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 60,
+        "y": 61,
         "w": 24,
         "h": 1
       },
@@ -2585,7 +2785,7 @@
       "description": "Usage startup, MCP handoff, dispatch admission, budget reservation, runtime and realtime dispatch (execution.*). Nested spans overlap their parents.",
       "gridPos": {
         "x": 0,
-        "y": 61,
+        "y": 62,
         "w": 8,
         "h": 8
       },
@@ -2646,14 +2846,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2708,7 +2908,7 @@
       "description": "Run-log finalization, terminal persistence, accounting, liveness and continuation summaries (completion.*).",
       "gridPos": {
         "x": 8,
-        "y": 61,
+        "y": 62,
         "w": 8,
         "h": 8
       },
@@ -2769,14 +2969,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2831,7 +3031,7 @@
       "description": "How long the main post-dispatch phases took per step.",
       "gridPos": {
         "x": 16,
-        "y": 61,
+        "y": 62,
         "w": 8,
         "h": 8
       },
@@ -2891,14 +3091,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -2953,7 +3153,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 69,
+        "y": 70,
         "w": 24,
         "h": 1
       },
@@ -2966,7 +3166,7 @@
       "description": "Wait until the first deliverable text, measured from the accepted trigger (queueing, preparation, startup, provider latency and ingestion). p95 is dashed.",
       "gridPos": {
         "x": 0,
-        "y": 70,
+        "y": 71,
         "w": 8,
         "h": 8
       },
@@ -3045,14 +3245,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -3086,7 +3286,7 @@
       "description": "Runner session startup: transport, runtime staging and workspace sync, until the first durable turn.submitted event. p95 is dashed.",
       "gridPos": {
         "x": 8,
-        "y": 70,
+        "y": 71,
         "w": 8,
         "h": 8
       },
@@ -3165,14 +3365,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -3206,7 +3406,7 @@
       "description": "runner.session.bootstrap = a new provider session; runner.session.resume = an exact recovered session. Resumes skip most startup work.",
       "gridPos": {
         "x": 16,
-        "y": 70,
+        "y": 71,
         "w": 8,
         "h": 8
       },
@@ -3281,7 +3481,7 @@
       "description": "Mean duration per Runner startup phase. Nested phases overlap their parents (for example artifact preparation sits inside transport connect), so do not add the bars.",
       "gridPos": {
         "x": 0,
-        "y": 78,
+        "y": 79,
         "w": 12,
         "h": 8
       },
@@ -3342,14 +3542,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -3404,7 +3604,7 @@
       "description": "Mean duration per native preparation phase before the provider starts. heartbeat.queue is the wait before preparation begins.",
       "gridPos": {
         "x": 12,
-        "y": 78,
+        "y": 79,
         "w": 12,
         "h": 8
       },
@@ -3465,14 +3665,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -3527,7 +3727,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 86,
+        "y": 87,
         "w": 24,
         "h": 1
       },
@@ -3540,7 +3740,7 @@
       "description": "From turn.submitted to the provider terminal event. Includes model time and tool use. p95 is dashed.",
       "gridPos": {
         "x": 0,
-        "y": 87,
+        "y": 88,
         "w": 8,
         "h": 8
       },
@@ -3619,14 +3819,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -3660,7 +3860,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 87,
+        "y": 88,
         "w": 8,
         "h": 8
       },
@@ -3724,7 +3924,7 @@
       "description": "submitted_to_started: time for the provider to accept the turn. time_to_first_agent_event: first meaningful provider activity (assistant or reasoning text, or a tool announcement), not a finished answer.",
       "gridPos": {
         "x": 16,
-        "y": 87,
+        "y": 88,
         "w": 8,
         "h": 8
       },
@@ -3803,14 +4003,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -3865,7 +4065,7 @@
       "description": "Native control-plane tool calls by their known semantic operation (anything else is 'other'). Counts per fixed 5-minute step; no arguments or call IDs are exported.",
       "gridPos": {
         "x": 0,
-        "y": 95,
+        "y": 96,
         "w": 8,
         "h": 8
       },
@@ -3925,14 +4125,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -3966,7 +4166,7 @@
       "description": "Tool executions that ended in an error status. Empty is good.",
       "gridPos": {
         "x": 8,
-        "y": 95,
+        "y": 96,
         "w": 8,
         "h": 8
       },
@@ -4026,14 +4226,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4067,7 +4267,7 @@
       "description": "Authorization plus execution inside the server authority, including HTTP request time.",
       "gridPos": {
         "x": 16,
-        "y": 95,
+        "y": 96,
         "w": 8,
         "h": 8
       },
@@ -4146,14 +4346,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4187,7 +4387,7 @@
       "description": "From a tool announcement to its last input update. Includes provider buffering and transport; not the exact end of model generation.",
       "gridPos": {
         "x": 0,
-        "y": 103,
+        "y": 104,
         "w": 8,
         "h": 7
       },
@@ -4266,14 +4466,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4307,7 +4507,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 103,
+        "y": 104,
         "w": 16,
         "h": 7
       },
@@ -4403,7 +4603,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 110,
+        "y": 111,
         "w": 24,
         "h": 1
       },
@@ -4416,7 +4616,7 @@
       "description": "Agent turns by provider kind (for ACPX the underlying agent, such as claude or codex).",
       "gridPos": {
         "x": 0,
-        "y": 111,
+        "y": 112,
         "w": 8,
         "h": 7
       },
@@ -4476,14 +4676,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4517,7 +4717,7 @@
       "description": "Native sessions by the driver that ran them.",
       "gridPos": {
         "x": 8,
-        "y": 111,
+        "y": 112,
         "w": 8,
         "h": 7
       },
@@ -4577,14 +4777,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4618,7 +4818,7 @@
       "description": "How the session lifecycle policy treated the provider session (for example warm reuse versus a new session).",
       "gridPos": {
         "x": 16,
-        "y": 111,
+        "y": 112,
         "w": 8,
         "h": 7
       },
@@ -4678,14 +4878,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4719,7 +4919,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 118,
+        "y": 119,
         "w": 24,
         "h": 1
       },
@@ -4732,7 +4932,7 @@
       "description": "Mean duration of the main workspace_sync phases (remote and sandbox targets). Parallel tasks overlap, and parents include their children, so do not add the layers for elapsed time.",
       "gridPos": {
         "x": 0,
-        "y": 119,
+        "y": 120,
         "w": 12,
         "h": 8
       },
@@ -4792,14 +4992,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4854,7 +5054,7 @@
       "description": "Ten slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it.",
       "gridPos": {
         "x": 12,
-        "y": 119,
+        "y": 120,
         "w": 12,
         "h": 8
       },
@@ -4915,14 +5115,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -4977,7 +5177,7 @@
       "description": "Outcome of the pristine repository-object cache lookup: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error.",
       "gridPos": {
         "x": 0,
-        "y": 127,
+        "y": 128,
         "w": 8,
         "h": 7
       },
@@ -5037,14 +5237,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -5078,7 +5278,7 @@
       "description": "Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes.",
       "gridPos": {
         "x": 8,
-        "y": 127,
+        "y": 128,
         "w": 8,
         "h": 7
       },
@@ -5139,14 +5339,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -5180,7 +5380,7 @@
       "description": "Bytes the native session reports as transferred to the execution target.",
       "gridPos": {
         "x": 16,
-        "y": 127,
+        "y": 128,
         "w": 8,
         "h": 7
       },
@@ -5241,14 +5441,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -5282,7 +5482,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 134,
+        "y": 135,
         "w": 24,
         "h": 1
       },
@@ -5295,7 +5495,7 @@
       "description": "Slowest controller phase per name in the range (tool reviews, gateway sessions, delivery workers, accounting, plugin workers, native recovery, ...). These are readiness phases, not agent runs. They are recorded at server start, so widen the range to include one.",
       "gridPos": {
         "x": 0,
-        "y": 135,
+        "y": 136,
         "w": 8,
         "h": 8
       },
@@ -5356,14 +5556,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -5418,7 +5618,7 @@
       "description": "Error spans from controller.* phases per hour. Empty is good.",
       "gridPos": {
         "x": 8,
-        "y": 135,
+        "y": 136,
         "w": 8,
         "h": 8
       },
@@ -5504,7 +5704,7 @@
       "description": "Duration of native finalization reconciliation passes. Only passes of one second or longer are recorded, so no data means every pass was fast.",
       "gridPos": {
         "x": 16,
-        "y": 135,
+        "y": 136,
         "w": 8,
         "h": 8
       },
@@ -5583,14 +5783,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -5624,7 +5824,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 143,
+        "y": 144,
         "w": 24,
         "h": 1
       },
@@ -5637,7 +5837,7 @@
       "description": "Budget admission, reservation, accounting, settlement, enforcement and cancellation spans (paperclip.budgets tracer).",
       "gridPos": {
         "x": 0,
-        "y": 144,
+        "y": 145,
         "w": 8,
         "h": 8
       },
@@ -5723,7 +5923,7 @@
       "description": "Time to acquire the company accounting lock. Rises under contention between concurrent runs of one company.",
       "gridPos": {
         "x": 8,
-        "y": 144,
+        "y": 145,
         "w": 8,
         "h": 8
       },
@@ -5802,14 +6002,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -5843,7 +6043,7 @@
       "description": "Time between a pending policy's last intent or retry and its delivery (budget.enforcement.queue_delay_ms).",
       "gridPos": {
         "x": 16,
-        "y": 144,
+        "y": 145,
         "w": 8,
         "h": 8
       },
@@ -5903,14 +6103,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -5944,7 +6144,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 152,
+        "y": 153,
         "w": 24,
         "h": 1
       },
@@ -5957,7 +6157,7 @@
       "description": "Server spans from the HTTP auto-instrumentation, by request method. Attribute names follow the stable OpenTelemetry semantic conventions.",
       "gridPos": {
         "x": 0,
-        "y": 153,
+        "y": 154,
         "w": 8,
         "h": 8
       },
@@ -6017,14 +6217,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -6058,7 +6258,7 @@
       "description": "",
       "gridPos": {
         "x": 8,
-        "y": 153,
+        "y": 154,
         "w": 8,
         "h": 8
       },
@@ -6137,14 +6337,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -6178,7 +6378,7 @@
       "description": "Responses by HTTP status code. Anything 5xx also shows as an error span.",
       "gridPos": {
         "x": 16,
-        "y": 153,
+        "y": 154,
         "w": 8,
         "h": 8
       },
@@ -6238,14 +6438,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -6279,7 +6479,7 @@
       "description": "The path is the request path as received, so it can contain task or agent IDs.",
       "gridPos": {
         "x": 0,
-        "y": 161,
+        "y": 162,
         "w": 16,
         "h": 8
       },
@@ -6379,7 +6579,7 @@
       "description": "GET /api/issues/:id phases (paperclip.issue-read tracer): lookup, authorization, ancestors, documents, blockers, and so on. Concurrent phases overlap.",
       "gridPos": {
         "x": 16,
-        "y": 161,
+        "y": 162,
         "w": 8,
         "h": 8
       },
@@ -6440,14 +6640,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -6502,7 +6702,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 169,
+        "y": 170,
         "w": 24,
         "h": 1
       },
@@ -6515,7 +6715,7 @@
       "description": "Eyes reactions acknowledging durable receipt of a Slack message: confirmed or failed. Failed attempts are not acknowledgement latency samples.",
       "gridPos": {
         "x": 0,
-        "y": 170,
+        "y": 171,
         "w": 8,
         "h": 7
       },
@@ -6575,14 +6775,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -6616,7 +6816,7 @@
       "description": "Durable inbound receipt to provider confirmation. Excludes Slack-to-webhook transit and SDK parsing.",
       "gridPos": {
         "x": 8,
-        "y": 170,
+        "y": 171,
         "w": 8,
         "h": 7
       },
@@ -6676,14 +6876,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -6717,7 +6917,7 @@
       "description": "Action creation to transport.",
       "gridPos": {
         "x": 16,
-        "y": 170,
+        "y": 171,
         "w": 8,
         "h": 7
       },
@@ -6777,14 +6977,14 @@
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.5(?:0*)\\}$/",
+            "regex": "/^0\\.5(?:0*)$/",
             "renamePattern": "p50"
           }
         },
         {
           "id": "renameByRegex",
           "options": {
-            "regex": "/^\\{p=0\\.95\\}$/",
+            "regex": "/^0\\.95$/",
             "renamePattern": "p95"
           }
         },
@@ -6818,7 +7018,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 177,
+        "y": 178,
         "w": 24,
         "h": 1
       },
@@ -6831,7 +7031,7 @@
       "description": "The ten most frequent span names. Instrumentation spans (HTTP, authentication) usually dominate.",
       "gridPos": {
         "x": 0,
-        "y": 178,
+        "y": 179,
         "w": 12,
         "h": 8
       },
@@ -6917,7 +7117,7 @@
       "description": "Error spans by name per hour; empty is good.",
       "gridPos": {
         "x": 12,
-        "y": 178,
+        "y": 179,
         "w": 12,
         "h": 8
       },
@@ -7003,7 +7203,7 @@
       "collapsed": false,
       "gridPos": {
         "x": 0,
-        "y": 186,
+        "y": 187,
         "w": 24,
         "h": 1
       },
@@ -7016,7 +7216,7 @@
       "description": "Spans reaching Tempo from the selected instance(s). No data means Paperclip is not exporting: check OTEL_EXPORTER_OTLP_ENDPOINT and the server log for a package diagnostic.",
       "gridPos": {
         "x": 0,
-        "y": 187,
+        "y": 188,
         "w": 6,
         "h": 4
       },
@@ -7070,7 +7270,7 @@
       "description": "Distinct service names (OTEL_SERVICE_NAME) with spans in the range.",
       "gridPos": {
         "x": 6,
-        "y": 187,
+        "y": 188,
         "w": 6,
         "h": 4
       },
@@ -7124,7 +7324,7 @@
       "description": "Span ingest rate per service.",
       "gridPos": {
         "x": 12,
-        "y": 187,
+        "y": 188,
         "w": 12,
         "h": 4
       },
