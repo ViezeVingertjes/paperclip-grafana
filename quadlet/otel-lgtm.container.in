@@ -1,0 +1,35 @@
+# Podman Quadlet unit (rootless, systemd --user). install.sh fills in @SETUP_DIR@ and copies it to
+# ~/.config/containers/systemd/otel-lgtm.container, from which systemd generates otel-lgtm.service.
+[Unit]
+Description=Grafana LGTM stack (Grafana, Tempo, Loki, Prometheus) for Paperclip telemetry
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+ContainerName=otel-lgtm
+# Pinned to a tested release (tag plus the multi-arch index digest, which wins if they ever disagree).
+# To upgrade: bump both, run tools/validate_dashboard.py, and update the Compatibility line in the README.
+Image=docker.io/grafana/otel-lgtm:0.39.0@sha256:4c8056c9c05fcb3c8fd93800e85334bfd79b4d0271b47a54a121a64af41fe1fe
+# Shared with the Paperclip container, which exports to http://otel-lgtm:4317 over this network. A container cannot
+# reach a port that is published on the host's 127.0.0.1, so the two meet on a network instead.
+Network=paperclip-net.network
+# Localhost only: nothing here is reachable from the network.
+PublishPort=127.0.0.1:3000:3000
+PublishPort=127.0.0.1:4317:4317
+PublishPort=127.0.0.1:4318:4318
+# Make the Paperclip dashboard the home page.
+Environment=GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/paperclip-dashboards/paperclip.json
+# Persistent data (Grafana users and password, metrics, logs, traces).
+Volume=%h/.local/share/otel-lgtm:/data:Z
+# Replace the image's sample dashboards with only ours, and load our dashboard.
+Volume=@SETUP_DIR@/provisioning/grafana-dashboards.yaml:/otel-lgtm/grafana/conf/provisioning/dashboards/grafana-dashboards.yaml:ro,Z
+Volume=@SETUP_DIR@/dashboards:/paperclip-dashboards:ro,Z
+
+[Service]
+ExecStartPre=/usr/bin/mkdir -p %h/.local/share/otel-lgtm
+Restart=always
+RestartSec=5
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target

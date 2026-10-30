@@ -1,0 +1,27 @@
+# Adds Paperclip's optional OpenTelemetry packages to an existing Paperclip image.
+#
+#   podman build -t paperclip-otel -f paperclip-otel/Containerfile --build-arg BASE=paperclip-local paperclip-otel
+#
+# Paperclip loads these at startup only when OTEL_EXPORTER_OTLP_ENDPOINT is set, and refuses any other version than the
+# ones its server/package.json declares as peerDependencies ("exact peer versions"). Keep the versions below in step with
+# that file (docs/upgrading.md). They sit in /opt/paperclip-otel and are linked into /app/node_modules, so the server's
+# plain `import("@opentelemetry/...")` finds them and pnpm's own tree stays untouched.
+ARG BASE=paperclip-local
+FROM ${BASE}
+
+USER root
+RUN set -eux; \
+    mkdir -p /opt/paperclip-otel /app/node_modules/@opentelemetry; \
+    cd /opt/paperclip-otel; \
+    npm init -y >/dev/null; \
+    npm install --omit=dev --no-audit --no-fund --save-exact \
+      @opentelemetry/sdk-node@0.221.0 \
+      @opentelemetry/auto-instrumentations-node@0.79.0 \
+      @opentelemetry/resources@2.10.0 \
+      @opentelemetry/semantic-conventions@1.43.0 \
+      @opentelemetry/exporter-trace-otlp-grpc@0.221.0; \
+    for p in sdk-node auto-instrumentations-node resources semantic-conventions exporter-trace-otlp-grpc; do \
+      ln -sfn "/opt/paperclip-otel/node_modules/@opentelemetry/$p" "/app/node_modules/@opentelemetry/$p"; \
+    done
+
+# The base image starts as root, drops to the node user and runs its own entrypoint; nothing else changes.

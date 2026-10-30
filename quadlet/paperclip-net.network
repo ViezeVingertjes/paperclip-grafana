@@ -1,0 +1,3 @@
+# The network the stack and the Paperclip container share (install.sh copies this next to otel-lgtm.container).
+[Network]
+NetworkName=paperclip-net

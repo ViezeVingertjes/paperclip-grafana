@@ -1,0 +1,61 @@
+# Fires when Paperclip has exported no spans for 15 minutes (the exporter or the packages are not working, or the server is down).
+# Paperclip exports nothing while idle only if nothing at all happens: its HTTP and database spans make a running server a steady source.
+#
+# Adjust before use:
+# - datasourceUid: the uid of your Prometheus datasource (Connections > Data sources, or the dashboard's
+#   Dashboard settings > JSON Model once imported). grafana/otel-lgtm uses "prometheus".
+# - the service name, and the threshold in the "C" query.
+# - add a notification policy or a label here that routes to your contact point; this file
+#   intentionally has none.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: no-spans
+    folder: Paperclip
+    interval: 1m
+    rules:
+      - uid: paperclip-no-spans
+        title: No Paperclip spans for 15 minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(increase(traces_spanmetrics_calls_total{service="paperclip"}[15m])) or vector(0)
+              instant: true
+          - refId: B
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: lt
+                    params: [1]
+        noDataState: Alerting
+        execErrState: Error
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Paperclip is not exporting traces
+          description: "No spans in 15 minutes. Check the server log for an OpenTelemetry diagnostic and the Telemetry pipeline row."

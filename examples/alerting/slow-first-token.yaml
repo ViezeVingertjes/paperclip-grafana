@@ -1,0 +1,60 @@
+# Fires when the mean time to first token over the last hour is above 120 seconds (task.time_to_first_token).
+#
+# Adjust before use:
+# - datasourceUid: the uid of your Prometheus datasource (Connections > Data sources, or the dashboard's
+#   Dashboard settings > JSON Model once imported). grafana/otel-lgtm uses "prometheus".
+# - the service name, and the threshold in the "C" query.
+# - add a notification policy or a label here that routes to your contact point; this file
+#   intentionally has none.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: slow-first-token
+    folder: Paperclip
+    interval: 1m
+    rules:
+      - uid: paperclip-slow-first-token
+        title: Mean time to first token above 2 minutes
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(increase(traces_spanmetrics_latency_sum{service="paperclip",span_name="task.time_to_first_token"}[1h])) / sum(increase(traces_spanmetrics_latency_count{service="paperclip",span_name="task.time_to_first_token"}[1h]))
+              instant: true
+          - refId: B
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [120]
+        noDataState: OK
+        execErrState: Error
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: Paperclip runs are slow to produce text
+          description: "Mean time to first token is {{ $values.B.Value }} s. See the Startup and first token row."

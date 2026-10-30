@@ -1,0 +1,60 @@
+# Fires when an agent run failed in the last hour (task.provider_session with an error status).
+#
+# Adjust before use:
+# - datasourceUid: the uid of your Prometheus datasource (Connections > Data sources, or the dashboard's
+#   Dashboard settings > JSON Model once imported). grafana/otel-lgtm uses "prometheus".
+# - the service name, and the threshold in the "C" query.
+# - add a notification policy or a label here that routes to your contact point; this file
+#   intentionally has none.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: run-failures
+    folder: Paperclip
+    interval: 1m
+    rules:
+      - uid: paperclip-run-failures
+        title: Agent run failed in the last hour
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              refId: A
+              expr: sum(increase(traces_spanmetrics_calls_total{service="paperclip",span_name="task.provider_session",status_code="STATUS_CODE_ERROR"}[1h])) or vector(0)
+              instant: true
+          - refId: B
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            datasourceUid: "__expr__"
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - evaluator:
+                    type: gt
+                    params: [0]
+        noDataState: OK
+        execErrState: Error
+        for: 0s
+        labels:
+          severity: warning
+        annotations:
+          summary: A Paperclip agent run failed
+          description: "{{ $values.B.Value }} failed runs in the last hour. Open the dashboard's Failed runs table."

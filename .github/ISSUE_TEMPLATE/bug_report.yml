@@ -1,0 +1,24 @@
+name: Bug report
+description: Something is wrong, missing or empty in the dashboard, installer or env script
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you saw, and what you expected. A screenshot of the panel helps (hide identifiers).
+    validations: { required: true }
+  - type: input
+    id: paperclip-version
+    attributes: { label: Paperclip version or commit, description: "The server logs `[paperclip] OpenTelemetry service.version=<commit>` at startup." }
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: How you run the stack
+      options: [Podman + systemd (install.sh), Docker or Docker Compose, Other]
+  - type: textarea
+    id: query
+    attributes:
+      label: Panel and query
+      description: The panel title, and the result of `python3 tools/validate_dashboard.py` if a query fails.
+      render: shell
