@@ -39,9 +39,16 @@ def get(path, params):
         return {"status": "error", "error": e.read().decode()[:300]}
 
 
+def walk(panels):
+    """Every panel, including the ones inside collapsed rows."""
+    for p in panels:
+        yield p
+        yield from walk(p.get("panels", []))
+
+
 bad = 0
 empty = []
-for p in d["panels"]:
+for p in walk(d["panels"]):
     for t in p.get("targets", []):
         ds = t["datasource"]["type"]; q = fix(t.get("expr") or t.get("query", "")); t0 = time.time()
         if ds == "prometheus":

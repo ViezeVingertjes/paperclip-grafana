@@ -21,7 +21,6 @@ RNG = random.Random(7)   # fixed seed: the same sample every run
 INTERNAL, SERVER = 1, 2
 OK, ERROR = 1, 2
 
-PROVIDERS = ["claude", "codex", "opencode"]
 TOOLS = ["issue.create", "issue.comment", "approval.request", "other"]
 
 
@@ -71,7 +70,7 @@ def run_hash(i):
     return hashlib.sha256(f"sample-run-{i}".encode()).hexdigest()[:12]
 
 
-def native_run(i, t0, provider, failed=False, resumed=False):
+def native_run(i, t0, failed=False, resumed=False):
     """One native run: the trace schema v3 lifecycle from doc/observability.md, scaled to a few minutes."""
     tr = Trace()
     rid = run_hash(i)
@@ -86,16 +85,16 @@ def native_run(i, t0, provider, failed=False, resumed=False):
     p = tr.add(root, "task.prepare", t, t + prep)
     env = tr.add(p, "environment.startup", t, t + prep * 0.6)
     tr.add(env, "environment.acquire", t, t + prep * 0.25)
-    tr.add(env, "environment.workspace.realize", t + prep * 0.25, t + prep * 0.6)
+    tr.add(env, "environment.workspace.realize", t + prep * 0.25, t + prep * 0.6, **{NS + "driver": "local"})
     tr.add(p, "skills.prepare", t + prep * 0.6, t + prep * 0.7)
     tr.add(p, "heartbeat.prepare_before_environment", t, t + prep * 0.2)
     tr.add(p, "heartbeat.prepare_after_environment", t + prep * 0.6, t + prep * 0.9)
     tr.add(p, "native.coordinator.claim", t + prep * 0.9, t + prep)
     t += prep
     ex = tr.add(root, "native.session.execute", t, t + startup + turn, failed=failed, **{
-        NS + "provider": provider, NS + "harness": "acpx" if provider != "opencode" else "opencode", NS + "lifecycleMode": "warm" if resumed else "fresh",
-        NS + "bytesTransferred": 40_000_000 + i * 3_000_000, NS + "outcome": "failed" if failed else "ok", NS + "trace_schema_version": 3})
-    st = tr.add(ex, "runner.session.startup", t, t + startup)
+        NS + "provider": "acpx", NS + "outcome": "failed" if failed else "ok", NS + "trace_schema_version": 3})
+    st = tr.add(ex, "runner.session.startup", t, t + startup, **{NS + "mode": "resume" if resumed else "bootstrap"})
+    tr.add(st, "runner.transport.selected", t, t + 0.05, **{NS + "mode": "local_loopback"})
     c = tr.add(st, "runner.transport.connect", t, t + startup * 0.3)
     tr.add(c, "runner.artifact.prepare", t, t + startup * 0.2)
     tr.add(st, "runner.transport.activation", t + startup * 0.3, t + startup * 0.4)
@@ -109,7 +108,7 @@ def native_run(i, t0, provider, failed=False, resumed=False):
     tr.add(st, "runner.session.resume" if resumed else "runner.session.bootstrap", t + startup * 0.8, t + startup * 0.95)
     tr.add(st, "runner.turn.submit", t + startup * 0.95, t + startup)
     t += startup
-    at = tr.add(ex, "agent.turn", t, t + turn, failed=failed, **{NS + "provider": provider})
+    at = tr.add(ex, "agent.turn", t, t + turn, failed=failed, **{NS + "provider": "acpx"})
     tr.add(at, "runner.turn.submitted_to_started", t, t + 1.5 + i % 3)
     tr.add(at, "provider.time_to_first_agent_event", t, t + 5 + i % 4)
     for k in range(3 + i % 3):
@@ -152,11 +151,8 @@ def execution_attempt(i, t0):
     for j, name in enumerate(["skills.inventory", "skills.cache.acquire", "skills.rows", "skills.version.read", "skills.version.materialize",
                               "skills.version.verify", "skills.consume", "skills.repository.read"]):
         tr.add(cfg, name, t0 + 1 + j * 0.1, t0 + 1.1 + j * 0.1 + 0.02 * j, **rid)
-    sync = tr.add(root, "runtime_selection.workspace_sync", t0 + 20, t0 + 29)
-    for j, name in enumerate(["workspace_sync.stage_workspace", "workspace_sync.transfer", "workspace_sync.pack", "workspace_sync.snapshot_git",
-                              "workspace_sync.snapshot_baseline", "workspace_sync.seed_lookup", "workspace_sync.inbound_barrier", "workspace_sync.git_clone"]):
-        tr.add(sync, name, t0 + 20 + j * 0.5, t0 + 21 + j * 0.9, **({"paperclip.execution.fileCount": 120 + i, "paperclip.execution.bytes": 5_000_000 + 400_000 * j}
-                                                                       if name.endswith(("transfer", "pack")) else {}))
+    tr.add(root, "runtime_selection.run_write", t0 + 20, t0 + 20.1, **rid)
+    tr.add(ws, "workspace.write", t0 + 19, t0 + 19.5, **{"paperclip.execution.fileCount": 120 + i, "paperclip.execution.bytes": 5_000_000 + 400_000 * i})
     for j, name in enumerate(["execution.usage_startup", "execution.mcp_handoff", "execution.dispatch_admission", "execution.budget_reservation",
                               "execution.runtime", "execution.usage", "execution.realtime"]):
         tr.add(root, name, t0 + 21 + j * 0.3, t0 + 21.2 + j * 0.3 + 0.1 * j, **rid)
@@ -221,7 +217,7 @@ def http_request(t0, method, path, status=200, slow=False):
 def all_traces():
     out = []
     for i in range(6):
-        out.append(native_run(i, NOW - 1500 + i * 200, PROVIDERS[i % 3], failed=(i == 4), resumed=(i % 3 == 2)))
+        out.append(native_run(i, NOW - 1500 + i * 200, failed=(i == 4), resumed=(i % 3 == 2)))
         out.append(execution_attempt(i, NOW - 1500 + i * 200 - 40))
     for k in range(4):
         out.append(controller_phases(NOW - 900 + k * 120))

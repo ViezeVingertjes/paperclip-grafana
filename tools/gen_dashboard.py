@@ -181,9 +181,10 @@ def tempo_table(title, query, x, y, w, h, table_type, desc="", rename=None, orde
     return p
 
 
-def row(title, y):
-    return {"id": nid(), "type": "row", "title": title, "collapsed": False,
-            "gridPos": {"x": 0, "y": y, "w": 24, "h": 1}, "panels": []}
+def row(title, y, children=None):
+    """A row header. With `children` it is collapsed: the panels live inside the row and load when it is opened."""
+    return {"id": nid(), "type": "row", "title": title, "collapsed": bool(children),
+            "gridPos": {"x": 0, "y": y, "w": 24, "h": 1}, "panels": children or []}
 
 
 # ---- shorthand selectors --------------------------------------------------------------------------
@@ -475,8 +476,8 @@ y += 8
 panels += [
     ts("Tool request input streaming (p95)", [quant("tool.request.input_stream", "0.95")], "s", 0, y, 8, 7, ds=TEMPO,
        desc="From a tool announcement to its last input update. Includes provider buffering and transport; not the exact end of model generation."),
-    tempo_table("Slow tool executions (over 5 s, slowest first)",
-                f'{tq("tool.execute", "duration > 5s")} | select({NS}operation)', 8, y, 16, 7, "spans",
+    tempo_table("Slow tool executions (over 1 s, slowest first)",
+                f'{tq("tool.execute", "duration > 1s")} | select({NS}operation)', 8, y, 16, 7, "spans",
                 hide=COMMON_HIDE + ["name"], sort="duration", order=["duration", "paperclip.native.span.operation", "time", "spanID"],
                 rename={"duration": "Duration", "paperclip.native.span.operation": "Tool", "time": "Start", "spanID": "Span ID"},
                 unit_overrides=DURATION_NS),
@@ -484,39 +485,31 @@ panels += [
 y += 7
 
 # ============================================================================== Providers (native)
-panels.append(row("Native runner: providers and sessions", y)); y += 1
+panels.append(row("Native runner: providers and environment", y)); y += 1
 panels += [
     bargauge("Turns by provider", f'{tq("agent.turn")} | count_over_time() by ({NS}provider)', "short", 0, y, 8, 7, ds=TEMPO,
              desc="Agent turns by provider kind (for ACPX the underlying agent, such as claude or codex)."),
-    bargauge("Sessions by harness", f'{{ {TSVC} && {NS}harness != nil }} | count_over_time() by ({NS}harness)', "short", 8, y, 8, 7, ds=TEMPO,
-             desc="Native sessions by the driver that ran them."),
-    bargauge("Sessions by lifecycle mode", f'{{ {TSVC} && {NS}lifecycleMode != nil }} | count_over_time() by ({NS}lifecycleMode)', "short", 16, y, 8, 7, ds=TEMPO,
-             desc="How the session lifecycle policy treated the provider session (for example warm reuse versus a new session)."),
+    bargauge("Workspace environment", f'{tq("environment.workspace.realize")} | count_over_time() by ({NS}driver)', "short", 8, y, 8, 7, ds=TEMPO,
+             desc="Where each run's workspace was realized (paperclip.native.span.driver on environment.workspace.realize): local, or the sandbox provider."),
+    bargauge("Runner transport", f'{tq("runner.transport.selected")} | count_over_time() by ({NS}mode)', "short", 16, y, 8, 7, ds=TEMPO,
+             desc="How the controller reached the Runner (paperclip.native.span.mode on runner.transport.selected), for example local_loopback."),
 ]
 y += 7
 native_end = len(panels)
 
 # ============================================================================== Workspace
 panels.append(row("Workspace and environment", y)); y += 1
-WS = r"workspace_sync\\.(stage_workspace|transfer|pack|snapshot_git|snapshot_baseline|seed_lookup|inbound_barrier|git_clone)"
 PREP_WS = r"heartbeat\\.prepare\\.workspace_.*"
 panels += [
-    ts("Workspace sync: where time goes (avg)", [f'{tq(WS, regex=True)} | avg_over_time(duration) by (name)'], "s", 0, y, 12, 11, ds=TEMPO, stack=True,
-       desc="Mean duration of the main workspace_sync phases (remote and sandbox targets). Parallel tasks overlap, and parents include their children, so do not add the layers for elapsed time."),
-    bargauge("Slowest workspace preparation steps (avg)", f'{tq(PREP_WS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 12, y, 12, 11, ds=TEMPO,
+    bargauge("Slowest workspace preparation steps (avg)", f'{tq(PREP_WS, regex=True)} | avg_over_time(duration) by (name) | topk(8)', "s", 0, y, 10, 11, ds=TEMPO,
              desc="Eight slowest heartbeat.prepare.workspace_* steps by mean duration. Steps are inside heartbeat.prepare.workspace; do not add them to it."),
+    ts("Workspace data written per 5 min", [f'{{ {TSVC} && span.paperclip.execution.bytes != nil }} | sum_over_time(span.paperclip.execution.bytes)'], "bytes", 10, y, 8, 11,
+       ds=TEMPO, bars=True, step="5m", desc="Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes."),
+    bargauge("Repository checkout cache", f'{{ {TSVC} && span.paperclip.execution.repositoryCache.outcome != nil }} | count_over_time() by (span.paperclip.execution.repositoryCache.outcome)',
+             "short", 18, y, 6, 11, ds=TEMPO,
+             desc="Outcome of the pristine repository-object cache lookup when a task checks out a repository: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error. Empty for workspaces without a repository."),
 ]
 y += 11
-panels += [
-    bargauge("Repository checkout cache", f'{{ {TSVC} && span.paperclip.execution.repositoryCache.outcome != nil }} | count_over_time() by (span.paperclip.execution.repositoryCache.outcome)',
-             "short", 0, y, 8, 7, ds=TEMPO,
-             desc="Outcome of the pristine repository-object cache lookup: hit, miss, published, already_present, contended, capacity, budget, invalid, disabled or error."),
-    ts("Workspace data written per 5 min", [f'{{ {TSVC} && span.paperclip.execution.bytes != nil }} | sum_over_time(span.paperclip.execution.bytes)'], "bytes", 8, y, 8, 7,
-       ds=TEMPO, bars=True, step="5m", desc="Bytes recorded by asset writes and verification (paperclip.execution.bytes), summed per 5 minutes."),
-    ts("Bytes transferred per 5 min (native)", [f'{{ {TSVC} && {NS}bytesTransferred != nil }} | sum_over_time({NS}bytesTransferred)'], "bytes", 16, y, 8, 7,
-       ds=TEMPO, bars=True, step="5m", desc="Bytes the native session reports as transferred to the execution target."),
-]
-y += 7
 
 # ============================================================================== Controller
 panels.append(row("Controller and recovery", y)); y += 1
@@ -532,16 +525,17 @@ panels += [
 y += 11
 
 # ============================================================================== Budget
+BUDGET_ENF = "budget\\\\.(enforcement|cancellation)\\\\..*"
 panels.append(row("Budget", y)); y += 1
 panels += [
-    ts("Budget operations per hour", [(per(r"budget\\..*", 3600, regex=True, by="span_name"), "{{span_name}}")], "short", 0, y, 8, 8, stack=True, bars=True,
+    ts("Budget operations per hour", [(per(r"budget\\..*", 3600, regex=True, by="span_name"), "{{span_name}}")], "short", 0, y, 8, 11, stack=True, bars=True,
        desc="Budget admission, reservation, accounting, settlement, enforcement and cancellation spans (paperclip.budgets tracer)."),
-    ts("Budget accounting lock wait (p95)", [quant("budget.accounting.lock_wait", "0.5, 0.95")], "s", 8, y, 8, 8, ds=TEMPO,
+    ts("Budget accounting lock wait (p95)", [quant("budget.accounting.lock_wait", "0.5, 0.95")], "s", 8, y, 8, 11, ds=TEMPO,
        desc="Time to acquire the company accounting lock. Rises under contention between concurrent runs of one company."),
-    ts("Budget enforcement queue delay (avg)", [f'{tq("budget.enforcement.deliver")} | avg_over_time(span.budget.enforcement.queue_delay_ms) by (name)'], "ms", 16, y, 8, 8, ds=TEMPO,
-       desc="Time between a pending policy's last intent or retry and its delivery (budget.enforcement.queue_delay_ms)."),
+    ts("Budget enforcement duration (avg)", [f'{tq(BUDGET_ENF, regex=True)} | avg_over_time(duration) by (name)'], "s", 16, y, 8, 11, ds=TEMPO, stack=True,
+       desc="How long budget enforcement work took: delivery, scope evaluation and cancellation (budget.enforcement.*, budget.cancellation.*)."),
 ]
-y += 8
+y += 11
 
 # ============================================================================== API
 panels.append(row("API", y)); y += 1
@@ -568,17 +562,17 @@ panels += [
 y += 11
 
 # ============================================================================== Chat
-panels.append(row("Chat channels", y)); y += 1
+# Collapsed: these only fill when a Slack connection is set up, so they stay out of the way until opened.
 CH = '{ ' + TSVC + ' && name = "chat.slack.receipt" }'
-panels += [
-    ts("Slack receipt reactions per 5 min", [f'{CH} | count_over_time() by (span.paperclip.chat.receipt.outcome)'], "short", 0, y, 8, 7, ds=TEMPO, stack=True, bars=True, step="5m",
+chat_panels = [
+    ts("Slack receipt reactions per 5 min", [f'{CH} | count_over_time() by (span.paperclip.chat.receipt.outcome)'], "short", 0, y + 1, 8, 7, ds=TEMPO, stack=True, bars=True, step="5m",
        desc="Eyes reactions acknowledging durable receipt of a Slack message: confirmed or failed. Failed attempts are not acknowledgement latency samples."),
-    ts("Receipt delivery age (avg)", [f'{CH} | avg_over_time(span.paperclip.chat.receipt.delivery_age_ms) by (span.paperclip.chat.receipt.operation)'], "ms", 8, y, 8, 7, ds=TEMPO,
+    ts("Receipt delivery age (avg)", [f'{CH} | avg_over_time(span.paperclip.chat.receipt.delivery_age_ms) by (span.paperclip.chat.receipt.operation)'], "ms", 8, y + 1, 8, 7, ds=TEMPO,
        desc="Durable inbound receipt to provider confirmation. Excludes Slack-to-webhook transit and SDK parsing."),
-    ts("Receipt queue time (avg)", [f'{CH} | avg_over_time(span.paperclip.chat.receipt.queue_ms)'], "ms", 16, y, 8, 7, ds=TEMPO,
+    ts("Receipt queue time (avg)", [f'{CH} | avg_over_time(span.paperclip.chat.receipt.queue_ms)'], "ms", 16, y + 1, 8, 7, ds=TEMPO,
        desc="Action creation to transport."),
 ]
-y += 7
+panels.append(row("Chat channels (needs a Slack connection)", y, chat_panels)); y += 1
 
 # ============================================================================== Traces
 panels.append(row("Traces (span metrics)", y)); y += 1
@@ -643,14 +637,12 @@ RENAMES = {
     "Where startup time goes (avg)": strip(r"runner\."),
     "Where native preparation time goes (avg)": strip(r"heartbeat\."),
     "Turn latency to first activity (p95)": strip(r"(?:runner|provider)\."),
-    "Workspace sync: where time goes (avg)": strip(r"workspace_sync\."),
     "Controller startup phases (slowest)": strip(r"controller\.startup\."),
     "Controller span errors per hour": strip(r"controller\.(?:startup\.)?"),
     "Task detail read phases (avg)": strip(r"issue\.read\."),
     "Budget operations per hour": strip(r"budget\."),
 }
 RENAMES["Workspace data written per 5 min"] = rn(("/^sum_over_time$/", "bytes written"))
-RENAMES["Bytes transferred per 5 min (native)"] = rn(("/^sum_over_time$/", "bytes transferred"))
 RENAMES["Receipt queue time (avg)"] = rn(("/^avg_over_time$/", "queue time"))
 EMPTY_IS_GOOD = {   # a chart that is empty because nothing went wrong should say so
     "Tool failures per 5 min by tool": "No tool failures in this range",

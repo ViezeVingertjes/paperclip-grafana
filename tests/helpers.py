@@ -10,3 +10,10 @@ def load(name, relpath):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+def walk(panels):
+    """Every panel of a dashboard, including the ones inside collapsed rows."""
+    for p in panels:
+        yield p
+        yield from walk(p.get("panels", []))

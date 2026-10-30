@@ -5,7 +5,7 @@ import os
 import re
 import unittest
 
-from tests.helpers import ROOT, load
+from tests.helpers import ROOT, load, walk
 
 sample = load("send_sample_telemetry", "tools/send_sample_telemetry.py")
 
@@ -13,7 +13,7 @@ sample = load("send_sample_telemetry", "tools/send_sample_telemetry.py")
 def dashboard_queries():
     with open(os.path.join(ROOT, "dashboards", "paperclip.json"), encoding="utf-8") as f:
         d = json.load(f)
-    return [t.get("expr") or t.get("query", "") for p in d["panels"] for t in p.get("targets", [])]
+    return [t.get("expr") or t.get("query", "") for p in walk(d["panels"]) for t in p.get("targets", [])]
 
 
 def sent_spans(payload):

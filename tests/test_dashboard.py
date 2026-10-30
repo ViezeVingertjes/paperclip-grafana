@@ -4,13 +4,13 @@ import subprocess
 import sys
 import unittest
 
-from tests.helpers import ROOT, load
+from tests.helpers import ROOT, load, walk
 
 gen = load("gen_dashboard", "tools/gen_dashboard.py")
 
 
 def targets(dashboard):
-    return [(p["title"], t) for p in dashboard["panels"] for t in p.get("targets", [])]
+    return [(p["title"], t) for p in walk(dashboard["panels"]) for t in p.get("targets", [])]
 
 
 def query(t):
@@ -26,8 +26,26 @@ class GeneratedDashboard(unittest.TestCase):
         names = [v["name"] for v in self.d["templating"]["list"]]
         self.assertEqual(names, ["service", "ds_prometheus", "ds_tempo"])
 
+    def test_has_every_row_in_reading_order(self):
+        # A patch to the generator once removed a whole row without any test noticing.
+        rows = [p["title"] for p in self.d["panels"] if p["type"] == "row"]
+        self.assertEqual(rows, [
+            "Health", "Overview", "Runs", "Run preparation", "Execution and completion",
+            "Native runner: startup and first token", "Native runner: agent turns and tools", "Native runner: providers and environment",
+            "Workspace and environment", "Controller and recovery", "Budget", "API",
+            "Chat channels (needs a Slack connection)", "Traces (span metrics)", "Telemetry pipeline"])
+
+    def test_top_level_panels_do_not_overlap(self):
+        taken = {}
+        for p in self.d["panels"]:
+            g = p["gridPos"]
+            for yy in range(g["y"], g["y"] + g["h"]):
+                for xx in range(g["x"], g["x"] + g["w"]):
+                    self.assertNotIn((xx, yy), taken, f'{p["title"]} overlaps {taken.get((xx, yy))}')
+                    taken[(xx, yy)] = p["title"]
+
     def test_panel_ids_are_unique(self):
-        ids = [p["id"] for p in self.d["panels"]]
+        ids = [p["id"] for p in walk(self.d["panels"])]
         self.assertEqual(len(ids), len(set(ids)))
 
     def test_only_prometheus_and_tempo_are_queried(self):
