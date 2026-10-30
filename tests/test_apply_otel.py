@@ -52,6 +52,21 @@ class ApplyOtel(unittest.TestCase):
         self.assertEqual([line for line in lines if line.startswith("OTEL_SERVICE_NAME")], ["OTEL_SERVICE_NAME=paperclip"])
         self.assertTrue(os.path.exists(self.path + ".bak-pre-otel"))
 
+    def test_native_flag_adds_the_provider_pack_variables(self):
+        lines = self.run_script("--native")
+        self.assertIn("PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT=/opt/paperclip-runner/provider-pack", lines)
+        self.assertIn("PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST=/opt/paperclip-runner/provider-pack/package.json", lines)
+        self.assertIn("OTEL_SERVICE_NAME=paperclip", lines)
+
+    def test_native_variables_are_left_out_unless_asked_for(self):
+        self.assertFalse([line for line in self.run_script() if line.startswith("PAPERCLIP_ACPX_")])
+
+    def test_remove_also_takes_the_native_variables_out(self):
+        self.write("KEEP=1\n")
+        self.run_script("--native")
+        lines = self.run_script("--remove")
+        self.assertEqual(lines, ["KEEP=1"])
+
     def test_backup_keeps_the_permissions_of_a_secrets_file(self):
         self.write("BETTER_AUTH_SECRET=abc\n")
         os.chmod(self.path, 0o600)

@@ -45,6 +45,12 @@ cd paperclip-grafana
 ./install.sh --build-image paperclip-local --paperclip-env /path/to/paperclip.env
 ```
 
+> **Use a recent Paperclip image.** The run-level and native spans this dashboard is built on (`task.*`, `native.*`,
+> `runner.*`) only exist in builds from mid-October 2026 on. The stable `ghcr.io/paperclipai/paperclip:latest` of
+> 2026.1023.0 predates them and exports only HTTP and database spans, so most rows stay empty (`--build-image` prints a
+> warning). Use `ghcr.io/paperclipai/paperclip:nightly` (or `:beta` once it has them), or build from the repository.
+> The official images work as they are; you do not need to build from source.
+
 Then run Paperclip **from the new `paperclip-otel` image on the `paperclip-net` network**, for example
 `podman run -d --network paperclip-net --env-file /path/to/paperclip.env ... paperclip-otel`, and open
 <http://127.0.0.1:3000>. Log in with `admin` / `admin` and **change the password**. The Paperclip dashboard is the home
@@ -125,6 +131,59 @@ Health, Runs, Run preparation, Execution, Workspace, Budget and API rows. The *N
 agents, which also need a Claude credential the runner accepts and an image built from Paperclip's `production` target
 (see [Troubleshooting](#troubleshooting)). Your own `OTEL_SERVICE_NAME` is fine: the *Instance* variable lists whatever
 exports Paperclip spans.
+
+## Agents that report properly
+
+Paperclip's own spans are only half of the picture. A few settings decide whether the rest shows up and whether the agents
+run at all. All of them were hit setting this up from scratch; each fix is a one-liner.
+
+**Log in with the same host name you configured.** Better Auth rejects any other origin with `Invalid origin`. If you open
+Paperclip as `http://localhost:3100` but `PAPERCLIP_PUBLIC_URL` says `http://127.0.0.1:3100`, add
+`BETTER_AUTH_TRUSTED_ORIGINS=http://127.0.0.1:3100,http://localhost:3100` and
+`PAPERCLIP_ALLOWED_HOSTNAMES=localhost,127.0.0.1`. Failed logins are rate limited (a few per 10 seconds); wait a minute
+instead of retrying.
+
+**Set `PAPERCLIP_AGENT_JWT_SECRET`** (any long random string). Without it the startup banner says `Agent JWT missing` and
+agents cannot call the API.
+
+**Claude Code's own telemetry (legacy `claude_local` agents).** The `claude` child process inherits the server's
+environment, including `OTEL_SERVICE_NAME=paperclip`, so its data would be filed under Paperclip. Put the variables from
+[claude-code-grafana](https://github.com/moverhorst-pitcrew/claude-code-grafana) in each agent's `adapterConfig.env` and
+override `OTEL_SERVICE_NAME=claude-code`. Add `OTEL_RESOURCE_ATTRIBUTES=host.name=<name>` to tell it apart from your own
+Claude Code in that dashboard's *Host* variable.
+
+### Native runner (`paperclip_runner`)
+
+1. **Image.** Use a recent image (see above). The stable one also lacks the native Claude provider package.
+2. **Installation check.** In the official image `@agentclientprotocol/claude-agent-acp` is installed outside
+   `/app/server/node_modules`, which Paperclip's ACPX integrity check rejects: the agent test fails with
+   `acpx_runtime_unavailable ... resolves outside the selected provider root` and the agent sits in `verifying`. The image
+   ships a self-contained provider pack that passes; point Paperclip at it:
+   ```text
+   PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT=/opt/paperclip-runner/provider-pack
+   PAPERCLIP_ACPX_PROVIDER_PACKAGE_MANIFEST=/opt/paperclip-runner/provider-pack/package.json
+   ```
+   `python3 paperclip-otel/apply-paperclip-otel.py FILE --native` adds both to an env file. The agent test then reports
+   `ACPX claude runtime is installed and verified`.
+3. **Credential.** The native runner starts the agent in a sanitized environment, so give it a Claude credential through a
+   Paperclip secret (`CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`, or `ANTHROPIC_API_KEY`) and bind it in the agent's
+   `adapterConfig.env` as `{"type": "secret_ref", "secretId": "..."}` (this is the route verified here; the runner does not use the
+   server's environment, so do not rely on a container variable).
+4. **Claude's telemetry for native agents.** Per-agent `OTEL_*` variables are ignored for native runs. Configure
+   **Company Settings > General > Agent observability** instead: *Custom OTLP*, base URL `http://otel-lgtm:4318`
+   (HTTP/protobuf; logs and traces, no metrics), and decide whether prompts, responses and tool content are captured
+   (Paperclip's default is on; this project's Claude dashboard assumes off). *Test saved settings* should answer
+   `accepted` for logs and traces. The data lands in Loki and Tempo as `service.name=claude-code` with
+   `paperclip_agent_id` and `paperclip_company_id`; Paperclip does not set `host.name` for native runs, so it shows under
+   *All* in the Claude dashboard's *Host* filter.
+
+### Budgets and subscriptions
+
+A Claude subscription reports no dollar cost, so every run is "unpriced". With the default policy (`unpricedUsagePolicy:
+block`, hard stop on) the first run pauses the agent for "budget" at $0 spent, and a run that is killed before its receipt
+(for example by a Paperclip restart) leaves the company paused with *Completed runs must finish accounting before
+resuming*. For subscription use, set the policies to `hardStopEnabled: false` and `unpricedUsagePolicy: allow` via
+`POST /api/companies/{id}/budgets/policies`; the 80 % warning still works.
 
 ## Screenshots
 
@@ -273,6 +332,12 @@ Data lives in `~/.local/share/otel-lgtm` (`docker compose down -v` for the compo
 | Counts and rates look short on a long range | `otel-lgtm` keeps about 15 days of metrics; the 7-day baseline in the health tiles needs that much history to be meaningful. |
 | Native runner runs fail with `admission_installation` | You built Paperclip's last Dockerfile stage, the `cloud` variant, which adds a nested `/app/server/node_modules/.pnpm` and breaks the runner sidecar's provider-package lookup. Build with `--target production`, which is what Paperclip's own CI pins. |
 | Native runner runs fail with `session_ensure_failed` | The native runner starts the agent in a sanitized environment and does not see the host's Claude login. Give the agent a credential it accepts: `CLAUDE_CODE_OAUTH_TOKEN` (a subscription token) or `ANTHROPIC_API_KEY`, through Paperclip's secrets or the agent's connection setup. |
+| `Invalid origin` when logging in | Open Paperclip with the host name in `PAPERCLIP_PUBLIC_URL`, or trust more origins; see [Agents that report properly](#agents-that-report-properly). `Too many requests` is the login rate limit: wait a minute. |
+| Only HTTP and database spans, no `task.*` / `native.*` / `runner.*` | The Paperclip image is older than mid-October 2026 (the stable `latest` is). Use `:nightly`/`:beta` or a source build. |
+| Native agent stuck in `verifying`, test says `acpx_runtime_unavailable ... outside the selected provider root` | Set `PAPERCLIP_ACPX_PROVIDER_PACKAGE_ROOT`/`_MANIFEST` to the image's provider pack (`apply-paperclip-otel.py --native`). |
+| Agents paused for "budget" at $0 spent, or the company stays paused after a restart | Subscription runs are unpriced and block on a hard stop; see *Budgets and subscriptions* above. |
+| Claude's data from agents is filed under `paperclip` | The child process inherits `OTEL_SERVICE_NAME`; override it in the agent's env. Native agents use Company Settings > Agent observability instead. |
+| `network not found: paperclip-net` after the stack was reinstalled | `podman network rm` leaves the oneshot unit "active". `install.sh` now recreates the network; by hand: `systemctl --user restart paperclip-net-network.service`. |
 | Stack does not start at boot | Lingering is off: run `sudo loginctl enable-linger $USER`. |
 | "Port already in use" | Something else uses 3000, 4317 or 4318 on localhost. Free it and re-run `./install.sh`. |
 | A *Native runner* panel is empty | Those spans only exist for agents with the `paperclip_runner` adapter, on a task in `standard`, `planning` or `ask` mode. Legacy adapters such as `claude_local` fill every other row. Detail spans are also capped at 16 per name per attempt. See [`telemetry-reference.md`](docs/telemetry-reference.md). |
